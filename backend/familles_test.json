@@ -1,0 +1,38 @@
+[
+  {
+    "code": "FRIPPE",
+    "name": "ACHAT DE MARCHANDISES FRIPERIE"
+  },
+  {
+    "code": "IMMOCORP",
+    "name": "AUTRES IMMOBILISATIONS CORPORELLES"
+  },
+  {
+    "code": "ADMIN",
+    "name": "FOURNITURES ADMINISTRATIVES"
+  },
+  {
+    "code": "IMPORT",
+    "name": "FRAIS ACCESSOIRES D'IMPORTATION"
+  },
+  {
+    "code": "BALLE",
+    "name": "GROSSE BALLE"
+  },
+  {
+    "code": "IMMO",
+    "name": "IMMOBILISATIONS"
+  },
+  {
+    "code": "FMO",
+    "name": "MAIN D'OEUVRE FABRICATION"
+  },
+  {
+    "code": "SERVICE",
+    "name": "SERVICES EXTERIEURS"
+  },
+  {
+    "code": "TRIAGE",
+    "name": "TRIAGE DE GROSSE BALLE"
+  }
+]

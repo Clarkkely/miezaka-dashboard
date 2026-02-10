@@ -1,0 +1,19 @@
+# ===== Node / React =====
+node_modules/
+frontend/node_modules/
+frontend/build/
+frontend/node_modules/.cache/
+
+# ===== Python =====
+.venv/
+env/
+__pycache__/
+*.pyc
+.env
+
+# ===== Logs =====
+*.log
+
+# ===== OS =====
+Thumbs.db
+.DS_Store

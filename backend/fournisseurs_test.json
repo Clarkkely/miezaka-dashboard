@@ -1,0 +1,102 @@
+[
+  {
+    "code": "40A003",
+    "name": "AFRETEX"
+  },
+  {
+    "code": "40T175",
+    "name": "AH- ATTAR"
+  },
+  {
+    "code": "40B014",
+    "name": "ATTAR"
+  },
+  {
+    "code": "40T174",
+    "name": "ATTAR AOR (TRIAGE OR)"
+  },
+  {
+    "code": "40T176",
+    "name": "ATTAR REMBALLE"
+  },
+  {
+    "code": "40E225",
+    "name": "EUROTEX GLOBAL FZC"
+  },
+  {
+    "code": "40G243",
+    "name": "GENERAL-TEX"
+  },
+  {
+    "code": "40L066",
+    "name": "LA LIGNE SCANDINAVE"
+  },
+  {
+    "code": "40L068",
+    "name": "LE RELAIS FRANCE $"
+  },
+  {
+    "code": "40L069",
+    "name": "LE RELAIS FRANCE \u20ac"
+  },
+  {
+    "code": "40L177",
+    "name": "LE RELAIS MADA ABR"
+  },
+  {
+    "code": "40L070",
+    "name": "LE RELAIS MADAGASCAR"
+  },
+  {
+    "code": "40R106",
+    "name": "RECUTEX"
+  },
+  {
+    "code": "40R108",
+    "name": "RHODANIENNE DE TRANSIT"
+  },
+  {
+    "code": "40R244",
+    "name": "RIMATEX BVBA"
+  },
+  {
+    "code": "40S121",
+    "name": "Soci\u00e9t\u00e9 Miezaka Eurl"
+  },
+  {
+    "code": "40S122",
+    "name": "SOCIETE NOUVELLE LEGARNISSON"
+  },
+  {
+    "code": "40S124",
+    "name": "SOEX"
+  },
+  {
+    "code": "40S126",
+    "name": "SOEX DUBAI"
+  },
+  {
+    "code": "40T171",
+    "name": "TR/A (ATTAR TRIER)"
+  },
+  {
+    "code": "40T170",
+    "name": "TR/S (SOEX DUBAI)"
+  },
+  {
+    "code": "40T169",
+    "name": "TR/T (TTR TRIER )"
+  },
+  {
+    "code": "40T173",
+    "name": "TTR ANCIEN"
+  },
+  {
+    "code": "40T143",
+    "name": "TTR D"
+  },
+  {
+    "code": "40Z182",
+    "name": "ZOMATEL"
+  }
+]
