@@ -12,87 +12,58 @@ router = APIRouter()
 @router.get("/familles")
 async def get_familles() -> List[Dict[str, str]]:
     """
-    Récupère TOUTES les familles d'articles depuis la base de données
+    Récupère les familles d'articles autorisées (FRIPPE, BALLE, TRIAGE uniquement)
     """
-    try:
-        query = """
-        SELECT DISTINCT 
-            RTRIM(F.FA_CodeFamille) AS code,
-            RTRIM(COALESCE(NULLIF(F.FA_Intitule, ''), F.FA_CodeFamille)) AS name
-        FROM dbo.F_FAMILLE F
-        WHERE F.FA_CodeFamille IS NOT NULL 
-        AND F.FA_CodeFamille != ''
-        ORDER BY name
-        """
-        
-        with db.get_connection() as conn:
-            df = pd.read_sql(query, conn)
-            
-            # Conversion en liste de dictionnaires
-            familles = df.to_dict('records')
-            
-            # DEBUG: Afficher ce qui a été trouvé
-            print(f"=== DEBUG FAMILLES ===")
-            print(f"Nombre de familles trouvées: {len(familles)}")
-            if familles:
-                print(f"Exemples: {familles[:10]}")
-            
-            return familles
-            
-    except Exception as e:
-        print(f"Erreur lors de la récupération des familles: {str(e)}")
-        # En cas d'erreur, retourner une liste vide
-        return []
+    # Liste restreinte des familles autorisées
+    familles = [
+        {'code': 'FRIPPE', 'name': 'ACHAT DE MARCHANDISES FRIPERIE'},
+        {'code': 'BALLE', 'name': 'GROSSE BALLE'},
+        {'code': 'TRIAGE', 'name': 'TRIAGE DE GROSSE BALLE'}
+    ]
+    
+    return familles
+
 
 
 # ==================== ENDPOINT FOURNISSEURS ====================
 @router.get("/fournisseurs")
 async def get_fournisseurs() -> List[Dict[str, str]]:
     """
-    Récupère TOUS les fournisseurs depuis la base de données
+    Récupère tous les fournisseurs possibles selon la formule de nommage
     """
-    try:
-        # Essai 1: Récupérer les fournisseurs depuis les articles (plus fiable car ceux qui ont des mouvements)
-        query = """
-        SELECT DISTINCT
-            RTRIM(A.ART_FOURPRINC) AS code,
-            RTRIM(COALESCE(C.CT_Intitule, A.ART_FOURPRINC)) AS name
-        FROM dbo.DP_ARTICLES A
-        LEFT JOIN dbo.F_COMPTET C ON C.CT_Num = A.ART_FOURPRINC
-        WHERE A.ART_FOURPRINC IS NOT NULL 
-          AND A.ART_FOURPRINC != ''
-        ORDER BY name
-        """
-        
-        with db.get_connection() as conn:
-            df = pd.read_sql(query, conn)
-            
-            # Si vide, fallback sur la table F_COMPTET directement mais filtrée
-            if len(df) == 0:
-                 query_fallback = """
-                 SELECT DISTINCT
-                    RTRIM(CT_Num) AS code,
-                    RTRIM(CT_Intitule) AS name
-                FROM dbo.F_COMPTET
-                WHERE CT_Type = 3
-                AND CT_Num IS NOT NULL
-                ORDER BY name
-                 """
-                 df = pd.read_sql(query_fallback, conn)
-
-            # Conversion en liste de dictionnaires
-            fournisseurs = df.to_dict('records')
-            
-            # DEBUG
-            print(f"=== DEBUG FOURNISSEURS ===")
-            print(f"Nombre de fournisseurs trouvés: {len(fournisseurs)}")
-            
-            return fournisseurs
-            
-    except Exception as e:
-        print(f"Erreur lors de la récupération des fournisseurs: {str(e)}")
-        # En cas d'erreur, retourner une liste vide
-        return []
+    # Liste complète de tous les noms de fournisseurs possibles selon la formule
+    # Chaque variante possible est incluse
+    fournisseurs = [
+        {'code': 'ATTAR', 'name': 'ATTAR'},
+        {'code': 'ATTAR PRO', 'name': 'ATTAR PRO'},
+        {'code': 'LE RELAIS FR', 'name': 'LE RELAIS FR'},
+        {'code': 'LRF PRO', 'name': 'LRF PRO'},
+        {'code': 'LE RELAIS FR DUB', 'name': 'LE RELAIS FR DUB'},
+        {'code': 'EUROTEX', 'name': 'EUROTEX'},
+        {'code': 'EUROTEX PRO', 'name': 'EUROTEX PRO'},
+        {'code': 'LRM SBR', 'name': 'LRM SBR'},
+        {'code': 'LRM ABR', 'name': 'LRM ABR'},
+        {'code': 'RECUTEX', 'name': 'RECUTEX'},
+        {'code': 'RECU PRO', 'name': 'RECU PRO'},
+        {'code': 'SOEX ALL', 'name': 'SOEX ALL'},
+        {'code': 'SOEX DUB', 'name': 'SOEX DUB'},
+        {'code': 'TTR/O', 'name': 'TTR/O'},
+        {'code': 'TTR/N', 'name': 'TTR/N'},
+        {'code': 'TTR/PRO', 'name': 'TTR/PRO'},
+        {'code': 'TTR/T', 'name': 'TTR/T'},
+        {'code': 'TTR ANCIENS', 'name': 'TTR ANCIENS'},
+        {'code': 'GENERAL-TEX', 'name': 'GENERAL-TEX'},
+        {'code': 'G-TEX PRO', 'name': 'G-TEX PRO'},
+        {'code': 'RIMATEX BVBA', 'name': 'RIMATEX BVBA'},
+        {'code': 'RIMATEX PRO', 'name': 'RIMATEX PRO'},
+        {'code': 'ANCIENS FRNS', 'name': 'ANCIENS FRNS'},
+    ]
+    
+    # DEBUG
+    print(f"=== DEBUG FOURNISSEURS ===")
+    print(f"Nombre de fournisseurs possibles: {len(fournisseurs)}")
+    
+    return fournisseurs
 
 
 @router.post("/generate", response_model=RapportResponse)

@@ -145,7 +145,14 @@ const KPICards: React.FC = () => {
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                                 {kpi.title}
                             </Typography>
-                            <Typography variant="h5" sx={{ fontWeight: 700, color: kpi.color }}>
+                            <Typography variant="h6" sx={{
+                                fontWeight: 800,
+                                color: kpi.color,
+                                whiteSpace: 'normal',
+                                wordBreak: 'break-word',
+                                fontSize: { xs: '0.9rem', md: '1.1rem' },
+                                lineHeight: 1.1
+                            }}>
                                 {kpi.value}
                             </Typography>
                         </CardContent>

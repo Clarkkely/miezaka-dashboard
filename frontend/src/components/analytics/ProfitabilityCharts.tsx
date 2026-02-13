@@ -122,7 +122,7 @@ const ProfitabilityCharts: React.FC = () => {
                         <ResponsiveContainer width="100%" height={400}>
                             <BarChart data={data.marge_par_article}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="article" angle={-45} textAnchor="end" height={100} />
+                                <XAxis dataKey="article" angle={-45} textAnchor="end" height={150} interval={0} tick={{ fontSize: 10 }} />
                                 <YAxis />
                                 <Tooltip
                                     formatter={(value: any, name?: string) => {

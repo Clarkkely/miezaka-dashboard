@@ -225,7 +225,7 @@ const SalesAnalysis: React.FC = () => {
                                 <BarChart data={data.top_10_articles} layout="vertical">
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis type="number" />
-                                    <YAxis dataKey="article" type="category" width={80} />
+                                    <YAxis dataKey="article" type="category" width={120} tick={{ fontSize: 10 }} />
                                     <Tooltip />
                                     <Bar dataKey="qte_vendue" fill="#10b981" name="Quantité" />
                                 </BarChart>

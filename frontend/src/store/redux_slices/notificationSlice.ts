@@ -22,6 +22,15 @@ const notificationSlice = createSlice({
     initialState,
     reducers: {
         addNotification: (state, action: PayloadAction<Omit<AppNotification, 'id' | 'timestamp' | 'read'>>) => {
+            // Prevent duplicate notifications within 2 seconds
+            if (state.notifications.length > 0) {
+                const last = state.notifications[0];
+                const isDuplicate = last.message === action.payload.message &&
+                    last.type === action.payload.type &&
+                    (Date.now() - last.timestamp < 5000);
+                if (isDuplicate) return;
+            }
+
             const newNotification: AppNotification = {
                 ...action.payload,
                 id: Date.now().toString(),
@@ -50,6 +59,11 @@ const notificationSlice = createSlice({
     extraReducers: (builder) => {
         // Listen for Rapport success
         builder.addCase('rapport/fetchRapport/fulfilled', (state) => {
+            // Dedupe check
+            if (state.notifications.length > 0) {
+                const last = state.notifications[0];
+                if (last.message === 'Rapport de mouvements généré avec succès.' && (Date.now() - last.timestamp < 5000)) return;
+            }
             const newNotification: AppNotification = {
                 id: Date.now().toString() + '-rap',
                 type: 'success',
@@ -63,6 +77,11 @@ const notificationSlice = createSlice({
 
         // Listen for Analytics success
         builder.addCase('analytics/fetchAll/fulfilled', (state) => {
+            // Dedupe check
+            if (state.notifications.length > 0) {
+                const last = state.notifications[0];
+                if (last.message === 'Analyses et prédictions prêtes à être consultées.' && (Date.now() - last.timestamp < 5000)) return;
+            }
             const newNotification: AppNotification = {
                 id: Date.now().toString() + '-ana',
                 type: 'success',

@@ -83,18 +83,18 @@ export const Analytics: React.FC = () => {
       return { date_debut: toIso(start), date_fin: toIso(end), date_stock: toIso(end) };
     })();
 
-    const filters = paramsFromLocation || lastParams || ({
-      ...defaultDates,
-      familles: ['BALLE', 'FRIPPE'],
-      min_stock: 0,
-      fournisseurs: [],
+    const filters = {
+      ...(paramsFromLocation || lastParams || defaultDates),
+      familles: ['FRIPPE', 'BALLE', 'TRIAGE'], // Force strict filtering as requested
+      min_stock: (paramsFromLocation || lastParams)?.min_stock ?? 0,
+      fournisseurs: (paramsFromLocation || lastParams)?.fournisseurs ?? [],
       debug_mode: false,
-    } as any);
+    };
 
     // Vérifier si on doit recharger les données
     const areParamsEqual = lastParams && JSON.stringify(lastParams) === JSON.stringify(filters);
     const isCacheValid = lastFetched && (Date.now() - lastFetched < cacheValidity);
-    
+
     // Charger les données SI:
     // 1. Aucune donnée n'a jamais été chargée (hasData === false)
     // 2. OU les paramètres ont changé (areParamsEqual === false)
@@ -240,7 +240,7 @@ export const Analytics: React.FC = () => {
                 {selectedInsight?.details?.map((art: Article) => (
                   <TableRow key={art.reference}>
                     <TableCell sx={{ fontWeight: 600, width: '15%' }}>{art.reference}</TableCell>
-                    <TableCell sx={{ width: '40%', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{art.designation}</TableCell>
+                    <TableCell sx={{ width: '40%', whiteSpace: 'normal', lineHeight: 1.2 }}>{art.designation}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700, color: art.stock_qte < 5 ? '#ef4444' : 'inherit', width: '15%' }}>
                       {art.stock_qte.toLocaleString()}
                     </TableCell>

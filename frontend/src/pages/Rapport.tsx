@@ -6,11 +6,11 @@ import {
   Typography,
   Paper,
 } from '@mui/material';
-import { ArrowBack as ArrowBackIcon, Download as DownloadIcon, Preview as PreviewIcon } from '@mui/icons-material';
+import { ArrowBack as ArrowBackIcon, Download as DownloadIcon, Preview as PreviewIcon, Print as PrintIcon } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RapportRequest } from '../services/api';
 import DataTable from '../components/Table/DataTable';
-import PrintPreview from '../components/Modal/PrintPreview';
+import { PrintPreview } from '../components/Modal/PrintPreview';
 import { showToast } from '../components/Toast/ModernToast';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchRapport } from '../store/redux_slices/rapportSlice';
@@ -30,7 +30,7 @@ const Rapport: React.FC = () => {
       // Vérifier si on doit recharger les données
       const areParamsEqual = lastParams && JSON.stringify(lastParams) === JSON.stringify(params);
       const isCacheValid = lastFetched && (Date.now() - lastFetched < cacheValidity);
-      
+
       // Charger les données SI:
       // 1. Aucune donnée n'a jamais été chargée (hasData === false)
       // 2. OU les paramètres ont changé (areParamsEqual === false)
@@ -200,12 +200,12 @@ const Rapport: React.FC = () => {
             <Button
               variant="outlined"
               color="info"
-              startIcon={<PreviewIcon />}
+              startIcon={<PrintIcon />}
               onClick={() => setPrintPreviewOpen(true)}
               size="small"
               sx={{ textTransform: 'none', fontWeight: 600 }}
             >
-              Aperçu
+              Imprimer
             </Button>
             <Button
               variant="contained"
@@ -233,6 +233,7 @@ const Rapport: React.FC = () => {
         onClose={() => setPrintPreviewOpen(false)}
         data={data || []}
         periodes={periodes}
+        minStock={lastParams?.min_stock}
       />
 
       {/* Contenu Principal - Scrollable en interne */}

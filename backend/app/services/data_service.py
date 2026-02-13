@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from app.database import db
+from app.services.supplier_naming import get_supplier_name
 
 # ==================== REQUÊTES SQL ====================
 Q_ACHAT = """
@@ -204,15 +205,15 @@ def generate_rapport(params):
         # Traitement identique à votre fonction rapport()
         all_articles = pd.concat([
             report[['ART_NUM', 'ART_LIB', 'ART_PRIXACH', 'ART_POIDSNET', 'ART_POIDSBRUT', 
-                    'ART_FOURPRINC', 'FA_CodeFamille', 'AR_PrixVenNouv', 'AR_PrixAchNouv', 'infolibre6']],
+                    'ART_FOURPRINC', 'FA_CodeFamille', 'AR_PrixVenNouv', 'AR_PrixAchNouv', 'infolibre6', 'infolibre10']],
             achat[['ART_NUM', 'ART_LIB', 'ART_PRIXACH', 'ART_POIDSNET', 'ART_POIDSBRUT',
-                   'ART_FOURPRINC', 'FA_CodeFamille', 'AR_PrixVenNouv', 'AR_PrixAchNouv', 'infolibre6']],
+                   'ART_FOURPRINC', 'FA_CodeFamille', 'AR_PrixVenNouv', 'AR_PrixAchNouv', 'infolibre6', 'infolibre10']],
             production[['ART_NUM', 'ART_LIB', 'ART_PRIXACH', 'ART_POIDSNET', 'ART_POIDSBRUT',
-                       'ART_FOURPRINC', 'FA_CodeFamille', 'AR_PrixVenNouv', 'AR_PrixAchNouv', 'infolibre6']],
+                       'ART_FOURPRINC', 'FA_CodeFamille', 'AR_PrixVenNouv', 'AR_PrixAchNouv', 'infolibre6', 'infolibre10']],
             vente[['ART_NUM', 'ART_LIB', 'ART_PRIXACH', 'ART_POIDSNET', 'ART_POIDSBRUT',
-                   'ART_FOURPRINC', 'FA_CodeFamille', 'AR_PrixVenNouv', 'AR_PrixAchNouv', 'infolibre6']],
+                   'ART_FOURPRINC', 'FA_CodeFamille', 'AR_PrixVenNouv', 'AR_PrixAchNouv', 'infolibre6', 'infolibre10']],
             stock[['ART_NUM', 'ART_LIB', 'ART_PRIXACH', 'ART_POIDSNET', 'ART_POIDSBRUT',
-                   'ART_FOURPRINC', 'FA_CodeFamille', 'AR_PrixVenNouv', 'AR_PrixAchNouv', 'infolibre6']]
+                   'ART_FOURPRINC', 'FA_CodeFamille', 'AR_PrixVenNouv', 'AR_PrixAchNouv', 'infolibre6', 'infolibre10']]
         ]).drop_duplicates(subset=['ART_NUM'])
 
         # Fusion des données de mouvements
@@ -228,50 +229,30 @@ def generate_rapport(params):
             stock[['ART_NUM', 'stock_qte', 'stock_poids']], on='ART_NUM', how='left'
         ).fillna(0)
 
-        # Récupération du nom du fournisseur principal (Sage 100 : table tiers F_COMPTET)
+        # Application de la logique métier pour le nom du fournisseur
         try:
-            # Nettoyage des clés de jointure pour éviter les erreurs liées aux espaces (CHAR vs VARCHAR)
+            # Nettoyage des données
             df["ART_FOURPRINC"] = df["ART_FOURPRINC"].astype(str).str.strip()
+            df["infolibre10"] = df["infolibre10"].astype(str).str.strip()
             
-            # Récupérer TOUS les fournisseurs de la table F_COMPTET (pas juste ceux du WHERE IN)
-            all_suppliers = pd.read_sql(
-                """
-                SELECT 
-                    RTRIM(CT_Num) as CT_Num,
-                    RTRIM(CT_Intitule) as CT_Intitule
-                FROM dbo.F_COMPTET
-                WHERE CT_Type = 3
-                """,
-                conn,
+            # Appliquer la logique métier personnalisée
+            df["Fournisseur_Nom"] = df.apply(
+                lambda row: get_supplier_name(row['ART_FOURPRINC'], row['infolibre10']),
+                axis=1
             )
             
-            # Créer un dictionnaire pour le mapping code -> nom
-            supplier_map = {}
-            for _, row in all_suppliers.iterrows():
-                code = str(row['CT_Num']).strip()
-                name = str(row['CT_Intitule']).strip() if pd.notna(row['CT_Intitule']) else code
-                supplier_map[code] = name
-            
-            print(f"\n=== Fournisseur Mapping ===")
-            print(f"Total suppliers in F_COMPTET: {len(supplier_map)}")
-            if len(supplier_map) > 0:
-                print(f"Sample suppliers: {list(supplier_map.items())[:3]}")
-            
-            # Appliquer le mapping au dataframe
-            df["Fournisseur_Nom"] = df['ART_FOURPRINC'].apply(
-                lambda code: supplier_map.get(str(code).strip(), str(code).strip()) if pd.notna(code) else ''
-            )
-            
+            print(f"\n=== Fournisseur Naming (Custom Logic) ===")
             print(f"Articles in report: {len(df)}")
             print(f"Fournisseur_Nom samples: {df['Fournisseur_Nom'].head(5).tolist()}")
             print(f"ART_FOURPRINC samples: {df['ART_FOURPRINC'].head(5).tolist()}")
+            print(f"infolibre10 samples: {df['infolibre10'].head(5).tolist()}")
 
         except Exception as e:
-            # En cas de problème, utiliser simplement le code
-            print(f"Error mapping fournisseur names: {e}")
+            # En cas de problème, utiliser "ANCIENS FRNS" par défaut
+            print(f"Error applying supplier naming logic: {e}")
             import traceback
             traceback.print_exc()
-            df["Fournisseur_Nom"] = df["ART_FOURPRINC"].astype(str).str.strip()
+            df["Fournisseur_Nom"] = "ANCIENS FRNS"
         
         # Calculs
         df['Montant_Disponible'] = df['stock_qte'] * df['ART_POIDSBRUT']
@@ -293,7 +274,8 @@ def generate_rapport(params):
         if params.min_stock > 0:
             df = df[df['stock_qte'] >= params.min_stock]
         if params.fournisseurs:
-            df = df[df['ART_FOURPRINC'].isin(params.fournisseurs)]
+            # Filtrer par nom de fournisseur (pas par code)
+            df = df[df['Fournisseur_Nom'].isin(params.fournisseurs)]
         
         return df
         

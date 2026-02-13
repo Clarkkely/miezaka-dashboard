@@ -21,8 +21,10 @@ async def get_sales_forecast():
                 SUM(VL.QTEVENDUES) as qte_totale,
                 SUM(VL.CATTCNet) as ca_total
             FROM dbo.DP_VENTES V
-            JOIN dbo.DP_VENTES_LIGNES VL ON V.V_DOCNUMBIN = VL.VL_DOCNUMBIN AND V.V_DOCTYPE = VL.VL_DOCTYPE
+            JOIN dbo.DP_ARTICLES A ON A.ART_UK = VL.VL_ART_UK
+            JOIN dbo.F_FAMILLE F ON F.FA_CODEFAMILLE = A.ART_FACODEFAMILLE
             WHERE V.V_DOCDATE >= DATEADD(MONTH, -12, GETDATE())
+                AND F.FA_CodeFamille IN ('BALLE', 'FRIPPE', 'TRIAGE')
             GROUP BY FORMAT(V.V_DOCDATE, 'yyyy-MM')
             ORDER BY mois
             """
@@ -108,9 +110,11 @@ async def get_stock_forecast():
                 ON STD.STD_ART_UK = LS.STD_ART_UK 
                 AND STD.STD_DLDATEBL = LS.max_date
             LEFT JOIN ventes_mensuelles VM ON VM.VL_ART_UK = A.ART_UK
+            LEFT JOIN dbo.F_FAMILLE F ON F.FA_CODEFAMILLE = A.ART_FACODEFAMILLE
             WHERE A.ART_SOMMEIL = 'Actif'
                 AND VM.vente_moy_mensuelle > 0
                 AND COALESCE(STD.STD_QTE, 0) > 0
+                AND F.FA_CodeFamille IN ('BALLE', 'FRIPPE', 'TRIAGE')
             ORDER BY mois_restants ASC
             """
             df = pd.read_sql(query, conn)
@@ -161,7 +165,9 @@ async def get_article_classification():
                 END as marge_pct
             FROM dbo.DP_ARTICLES A
             LEFT JOIN dbo.DP_VENTES_LIGNES VL ON VL.VL_ART_UK = A.ART_UK
+            LEFT JOIN dbo.F_FAMILLE F ON F.FA_CODEFAMILLE = A.ART_FACODEFAMILLE
             WHERE A.ART_SOMMEIL = 'Actif'
+                AND F.FA_CodeFamille IN ('BALLE', 'FRIPPE', 'TRIAGE')
             GROUP BY A.ART_NUM, A.ART_LIB, A.ART_PRIXACH
             HAVING SUM(VL.CATTCNet) > 0
             """

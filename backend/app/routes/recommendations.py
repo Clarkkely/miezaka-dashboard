@@ -231,7 +231,9 @@ async def get_recommendations():
                 FROM dbo.DP_VENTES_LIGNES
                 GROUP BY VL_ART_UK
             ) VL_TOTAL ON VL_TOTAL.VL_ART_UK = A.ART_UK
+            LEFT JOIN dbo.F_FAMILLE F ON F.FA_CODEFAMILLE = A.ART_FACODEFAMILLE
             WHERE A.ART_SOMMEIL = 'Actif'
+                AND F.FA_CodeFamille IN ('BALLE', 'FRIPPE', 'TRIAGE')
             """
             df = pd.read_sql(query, conn)
             
