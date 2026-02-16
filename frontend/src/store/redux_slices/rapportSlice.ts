@@ -10,6 +10,7 @@ interface RapportState {
     lastFetched: number | null;
     cacheValidity: number; // en millisecondes (défaut 5 min)
     hasData: boolean; // Flag pour savoir si des données ont été chargées une fois
+    originalDataMap: Record<string, { pu_achat: number; pu_gros: number; marge_pct: number }>;
 }
 
 const initialState: RapportState = {
@@ -21,6 +22,7 @@ const initialState: RapportState = {
     lastFetched: null,
     cacheValidity: 5 * 60 * 1000, // 5 minutes par défaut
     hasData: false,
+    originalDataMap: {},
 };
 
 /**
@@ -81,9 +83,29 @@ const rapportSlice = createSlice({
             state.error = null;
             state.lastFetched = null;
             state.hasData = false;
+            state.originalDataMap = {};
+        },
+        revertArticle: (state, action: { payload: string }) => {
+            const reference = action.payload;
+            if (!state.originalDataMap) return;
+            const original = state.originalDataMap[reference];
+            if (state.data && original) {
+                const index = state.data.findIndex(art => art.reference === reference);
+                if (index !== -1) {
+                    state.data[index] = { ...state.data[index], ...original };
+                }
+            }
         },
         setCacheValidity: (state, action) => {
             state.cacheValidity = action.payload;
+        },
+        updateArticle: (state, action: { payload: { reference: string; updates: Partial<Article> } }) => {
+            if (state.data) {
+                const index = state.data.findIndex(art => art.reference === action.payload.reference);
+                if (index !== -1) {
+                    state.data[index] = { ...state.data[index], ...action.payload.updates };
+                }
+            }
         },
     },
     extraReducers: (builder) => {
@@ -97,26 +119,43 @@ const rapportSlice = createSlice({
             })
             .addCase(fetchRapport.fulfilled, (state, action) => {
                 const fromCache = (action.payload as any).fromCache;
-                
+
                 state.loading = false;
                 state.data = action.payload.response.articles;
                 state.periodes = action.payload.response.periodes;
                 state.lastParams = action.payload.params;
-                
+
+                // Sync originalDataMap: Always refresh if fresh data or if currently empty
+                if (!fromCache || Object.keys(state.originalDataMap || {}).length === 0) {
+                    state.originalDataMap = {};
+                    action.payload.response.articles.forEach((art: Article) => {
+                        state.originalDataMap[art.reference] = {
+                            pu_achat: art.pu_achat,
+                            pu_gros: art.pu_gros,
+                            marge_pct: art.marge_pct
+                        };
+                    });
+                }
+
                 // Ne mettre à jour lastFetched que si ce n'est pas du cache
                 if (!fromCache) {
                     state.lastFetched = Date.now();
                 }
-                
+
                 state.hasData = true;
             })
             .addCase(fetchRapport.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload as string;
                 // Garder les données en cache même en cas d'erreur
+            })
+            // Reset loading state on re-hydration to prevent stuck spinner if persisted while loading
+            .addCase('persist/REHYDRATE', (state) => {
+                state.loading = false;
+                state.error = null;
             });
     },
 });
 
-export const { resetRapport, setCacheValidity } = rapportSlice.actions;
+export const { resetRapport, setCacheValidity, updateArticle, revertArticle } = rapportSlice.actions;
 export default rapportSlice.reducer;

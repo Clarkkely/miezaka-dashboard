@@ -21,7 +21,16 @@ import {
   TableRow,
 } from '@mui/material';
 import { Article } from '../../services/api';
+import { updateArticle } from '../../store/redux_slices/rapportSlice';
+import { useAppDispatch } from '../../store/hooks';
 import axios from 'axios';
+
+interface SimulationState {
+  pu_achat: number;
+  pu_vente: number;
+  marge_pct: number;
+  isApplied: boolean;
+}
 
 interface RecommendationModalProps {
   open: boolean;
@@ -67,19 +76,53 @@ const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [simulation, setSimulation] = useState<SimulationState | null>(null);
+  const [originalMetrics, setOriginalMetrics] = useState<Partial<Article> | null>(null);
+
+  const dispatch = useAppDispatch();
+
+  // Rounding logic
+  const roundToMultiple = (value: number, multiple: number) => {
+    return Math.round(value / multiple) * multiple;
+  };
+
+  const getRoundedPurchase = (val: number) => {
+    // Si c'est en Ariary (> 100), arrondir au multiple de 5
+    if (val > 100) return roundToMultiple(val, 5);
+    // Si c'est en devise (< 100), arrondir à 2 décimales pour ne pas tomber à 0
+    return Math.round(val * 100) / 100;
+  };
+
+  const getRoundedSale = (val: number, famille: string) => {
+    const isKG = famille.toUpperCase() !== 'BALLE';
+    return isKG ? roundToMultiple(val, 500) : roundToMultiple(val, 10000);
+  };
+
+  const calculateMarge = (achat: number, vente: number) => {
+    if (vente === 0) return 0;
+    return ((vente - achat) / vente) * 100;
+  };
 
   React.useEffect(() => {
     if (open && article) {
+      // Stocker les valeurs originales à l'ouverture pour permettre l'annulation
+      setOriginalMetrics({
+        pu_achat: article.pu_achat,
+        pu_gros: article.pu_gros,
+        marge_pct: article.marge_pct
+      });
       fetchAnalysis();
+    } else if (!open) {
+      setSimulation(null);
     }
   }, [open, article]);
 
   const fetchAnalysis = async () => {
     if (!article) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await axios.post(
         `${API_BASE_URL}/recommendations/detailed-analysis`,
@@ -102,6 +145,64 @@ const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleApplyRec = (rec: Recommendation) => {
+    if (!article || !analysis) return;
+
+    let newAchat = article.pu_achat;
+    let newVente = article.pu_gros; // Using PU Gros as the primary sale price for simulation
+
+    // Logic based on recommendation content
+    if (rec.type === 'EQUILIBRE' || rec.type === 'RENTABILITE' || rec.type === 'NEGOCIATION') {
+      // Often suggests reducing cost or increasing price
+      if (rec.description.toLowerCase().includes('marge') || rec.type === 'RENTABILITE') {
+        newVente = article.pu_gros * 1.08; // Simulate 8% increase
+      }
+      if (rec.type === 'NEGOCIATION') {
+        newAchat = article.pu_achat * 0.95; // Simulate 5% reduction
+      }
+    } else if (rec.type === 'EXPANSION' || rec.type === 'STOCK') {
+      // Suggests reducing price to move volume
+      newVente = article.pu_gros * 0.90; // Simulate 10% reduction
+    }
+
+    // Apply strict rounding rules
+    newAchat = getRoundedPurchase(newAchat);
+    newVente = getRoundedSale(newVente, article.famille);
+
+    setSimulation({
+      pu_achat: newAchat,
+      pu_vente: newVente,
+      marge_pct: calculateMarge(newAchat, newVente),
+      isApplied: false
+    });
+  };
+
+  const confirmSimulation = () => {
+    if (!article || !simulation) return;
+
+    dispatch(updateArticle({
+      reference: article.reference,
+      updates: {
+        pu_achat: simulation.pu_achat,
+        pu_gros: simulation.pu_vente,
+        marge_pct: simulation.marge_pct
+      }
+    }));
+
+    setSimulation({ ...simulation, isApplied: true });
+  };
+
+  const handleReset = () => {
+    if (!article || !originalMetrics) return;
+
+    dispatch(updateArticle({
+      reference: article.reference,
+      updates: originalMetrics
+    }));
+
+    setSimulation(null);
   };
 
   const getHealthColor = (score: number) => {
@@ -128,7 +229,7 @@ const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
       <DialogTitle sx={{ bgcolor: '#f5f5f5', fontWeight: 'bold' }}>
         Analyse détaillée - {article?.reference} {article?.designation}
       </DialogTitle>
-      
+
       <DialogContent sx={{ mt: 2 }}>
         {loading && (
           <Box sx={{ py: 3, textAlign: 'center' }}>
@@ -259,15 +360,87 @@ const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
                       ))}
                     </List>
 
-                    <Box sx={{ bgcolor: '#e3f2fd', p: 1, borderRadius: 1, borderLeft: '3px solid #2196f3' }}>
+                    <Box sx={{ bgcolor: '#e3f2fd', p: 1, borderRadius: 1, borderLeft: '3px solid #2196f3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         💡 Impact: {rec.impact}
                       </Typography>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        color="primary"
+                        onClick={() => handleApplyRec(rec)}
+                        sx={{ ml: 2, textTransform: 'none', fontWeight: 'bold', borderRadius: 2 }}
+                      >
+                        Appliquer
+                      </Button>
                     </Box>
                   </CardContent>
                 </Card>
               ))}
             </Box>
+
+            {/* Simulation Impact Panel */}
+            {simulation && (
+              <Card sx={{ mt: 1, border: '2px solid #2196f3', bgcolor: '#f0f7ff' }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ color: '#1976d2', fontWeight: 'bold', mb: 2, display: 'flex', alignItems: 'center' }}>
+                    📈 Impact de la recommandation {simulation.isApplied ? '(Appliqué)' : '(Simulation)'}
+                  </Typography>
+
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mb: 2 }}>
+                    <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1, boxShadow: 1 }}>
+                      <Typography variant="caption" color="textSecondary">PU Achat</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#666' }}>{article?.pu_achat.toLocaleString()}</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{simulation.pu_achat.toLocaleString()}</Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1, boxShadow: 1 }}>
+                      <Typography variant="caption" color="textSecondary">PU Gros</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#666' }}>{article?.pu_gros.toLocaleString()}</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{simulation.pu_vente.toLocaleString()}</Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1, boxShadow: 1 }}>
+                      <Typography variant="caption" color="textSecondary">Marge</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#666' }}>{article?.marge_pct.toFixed(1)}%</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: simulation.marge_pct > (article?.marge_pct || 0) ? '#2e7d32' : '#f44336' }}>
+                          {simulation.marge_pct.toFixed(1)}%
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  {!simulation.isApplied ? (
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      color="success"
+                      onClick={confirmSimulation}
+                      sx={{ fontWeight: 'bold' }}
+                    >
+                      Valider et mettre à jour le tableau
+                    </Button>
+                  ) : (
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="body2" sx={{ color: '#2e7d32', fontWeight: 'bold', mb: 1 }}>
+                        ✓ Changements appliqués au tableau local
+                      </Typography>
+                      <Button
+                        size="small"
+                        color="inherit"
+                        onClick={handleReset}
+                        sx={{ textTransform: 'none', textDecoration: 'underline' }}
+                      >
+                        Annuler et rétablir les valeurs originales
+                      </Button>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {analysis.recommendations.length === 0 && (
               <Card sx={{ bgcolor: '#e8f5e9' }}>

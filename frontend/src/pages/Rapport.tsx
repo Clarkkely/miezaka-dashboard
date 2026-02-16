@@ -5,12 +5,29 @@ import {
   CircularProgress,
   Typography,
   Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  OutlinedInput,
+  Checkbox,
+  ListItemText,
+  Chip,
+  Divider,
+  LinearProgress,
 } from '@mui/material';
-import { ArrowBack as ArrowBackIcon, Download as DownloadIcon, Preview as PreviewIcon, Print as PrintIcon } from '@mui/icons-material';
+import {
+  ArrowBack as ArrowBackIcon,
+  Download as DownloadIcon,
+  Preview as PreviewIcon,
+  Print as PrintIcon,
+  FilterList as FilterListIcon
+} from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RapportRequest } from '../services/api';
 import DataTable from '../components/Table/DataTable';
 import { PrintPreview } from '../components/Modal/PrintPreview';
+import ReportFilterModal from '../components/Modal/ReportFilterModal';
 import { showToast } from '../components/Toast/ModernToast';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchRapport } from '../store/redux_slices/rapportSlice';
@@ -19,33 +36,31 @@ const Rapport: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
+
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
 
   const { data, periodes, loading, error, lastParams, hasData, lastFetched, cacheValidity } = useAppSelector((state) => state.rapport);
 
-  // Récupérer les paramètres du rapport depuis le state de navigation
+
+
+  // Récupérer les paramètres du rapport depuis le state de navigation ou Redux
   useEffect(() => {
     const params = (location.state as any)?.rapportParams;
     if (params) {
-      // Vérifier si on doit recharger les données
-      const areParamsEqual = lastParams && JSON.stringify(lastParams) === JSON.stringify(params);
-      const isCacheValid = lastFetched && (Date.now() - lastFetched < cacheValidity);
-
-      // Charger les données SI:
-      // 1. Aucune donnée n'a jamais été chargée (hasData === false)
-      // 2. OU les paramètres ont changé (areParamsEqual === false)
-      // 3. ET le cache n'est pas valide
-      if (!hasData || (!areParamsEqual && !isCacheValid)) {
-        dispatch(fetchRapport(params)).then((result) => {
-          if (fetchRapport.fulfilled.match(result)) {
-            showToast.success('📊 Rapport généré avec succès!');
-          } else if (fetchRapport.rejected.match(result)) {
-            showToast.error(result.payload as string || 'Erreur lors du chargement');
-          }
-        });
-      }
+      // On dispatch toujours, le thunk s'occupe de la gestion du cache interne
+      dispatch(fetchRapport(params)).then((result) => {
+        if (fetchRapport.fulfilled.match(result) && !result.payload.fromCache) {
+          showToast.success('📊 Rapport actualisé !');
+        } else if (fetchRapport.rejected.match(result)) {
+          showToast.error(result.payload as string || 'Erreur lors du chargement');
+        }
+      });
     }
-  }, [location.state?.rapportParams, lastParams, dispatch, hasData, lastFetched, cacheValidity]);
+  }, [location.state?.rapportParams, dispatch]);
+
+
 
   const handleDownloadExcel = () => {
     if (!data) return;
@@ -165,6 +180,7 @@ const Rapport: React.FC = () => {
     showToast.success('📥 Fichier PDF téléchargé!');
   };
 
+
   return (
     <Box sx={{
       height: '100vh',
@@ -195,37 +211,65 @@ const Rapport: React.FC = () => {
             Rapport de Mouvements
           </Typography>
         </Box>
-        {data && (
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              variant="outlined"
-              color="info"
-              startIcon={<PrintIcon />}
-              onClick={() => setPrintPreviewOpen(true)}
-              size="small"
-              sx={{ textTransform: 'none', fontWeight: 600 }}
-            >
-              Imprimer
-            </Button>
-            <Button
-              variant="contained"
-              onClick={() => navigate('/analytics', { state: { rapportParams: lastParams } })}
-              sx={{
-                background: 'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
-                fontWeight: 700,
-                textTransform: 'none',
-                px: 3,
-                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.2)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
-                }
-              }}
-            >
-              Voir Analyse & Prédictions
-            </Button>
-          </Box>
-        )}
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {/* Nouveau Bouton Filtres Modale */}
+          <Button
+            variant="outlined"
+            onClick={() => setFiltersOpen(true)}
+            startIcon={<FilterListIcon />}
+            size="small"
+            sx={{
+              fontWeight: 700,
+              color: '#1e293b',
+              borderColor: '#e2e8f0',
+              '&:hover': { bgcolor: '#f1f5f9', borderColor: '#cbd5e1' }
+            }}
+          >
+            Filtres
+          </Button>
+
+
+
+          {data && (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                color="info"
+                startIcon={<PrintIcon />}
+                onClick={() => setPrintPreviewOpen(true)}
+                size="small"
+                sx={{ textTransform: 'none', fontWeight: 600 }}
+              >
+                Imprimer
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => navigate('/analytics', { state: { rapportParams: lastParams } })}
+                sx={{
+                  background: 'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  px: 3,
+                  boxShadow: '0 4px 12px rgba(15, 23, 42, 0.2)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+                  }
+                }}
+              >
+                Voir Analyse
+              </Button>
+            </Box>
+          )}
+        </Box>
       </Paper>
+
+      {/* Modal de Filtres Global */}
+      <ReportFilterModal
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        lastParams={lastParams}
+      />
 
       {/* Print Preview Modal */}
       <PrintPreview
@@ -238,10 +282,10 @@ const Rapport: React.FC = () => {
 
       {/* Contenu Principal - Scrollable en interne */}
       <Box sx={{ flexGrow: 1, overflow: 'hidden', p: 0, display: 'flex', flexDirection: 'column' }}>
-        {loading ? (
+        {loading && !data ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 2 }}>
             <CircularProgress size={60} thickness={4} />
-            <Typography color="text.secondary">Analyse des données en cours...</Typography>
+            <Typography color="text.secondary">Chargement des données...</Typography>
           </Box>
         ) : error ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -249,7 +293,12 @@ const Rapport: React.FC = () => {
             <Button onClick={() => window.location.reload()} sx={{ mt: 2 }}>Réessayer</Button>
           </Box>
         ) : data ? (
-          <Box sx={{ flexGrow: 1, overflow: 'hidden', height: '100%' }}>
+          <Box sx={{ flexGrow: 1, overflow: 'hidden', height: '100%', position: 'relative' }}>
+            {loading && (
+              <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100 }}>
+                <LinearProgress />
+              </Box>
+            )}
             <DataTable data={data} periodes={periodes} />
           </Box>
         ) : (

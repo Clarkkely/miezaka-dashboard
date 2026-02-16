@@ -123,7 +123,7 @@ const analyticsSlice = createSlice({
             })
             .addCase(fetchAnalyticsData.fulfilled, (state, action) => {
                 const fromCache = (action.payload as any).fromCache;
-                
+
                 state.loading = false;
                 state.insights = action.payload.insights;
                 state.salesTrend = action.payload.salesTrend;
@@ -131,18 +131,23 @@ const analyticsSlice = createSlice({
                 state.topSuppliers = action.payload.topSuppliers;
                 state.profitMargin = action.payload.profitMargin;
                 state.lastParams = action.payload.params;
-                
+
                 // Ne mettre à jour lastFetched que si ce n'est pas du cache
                 if (!fromCache) {
                     state.lastFetched = Date.now();
                 }
-                
+
                 state.hasData = true;
             })
             .addCase(fetchAnalyticsData.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload as string;
                 // Garder les données en cache même en cas d'erreur
+            })
+            // Reset loading state on re-hydration
+            .addCase('persist/REHYDRATE', (state) => {
+                state.loading = false;
+                state.error = null;
             });
     },
 });

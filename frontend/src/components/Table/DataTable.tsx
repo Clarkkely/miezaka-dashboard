@@ -8,14 +8,18 @@ import {
   TableRow,
   Box,
   Typography,
-  TextField,
-  Grid,
+  Paper,
   IconButton,
   Tooltip,
+  CircularProgress,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
 import { Article } from '../../services/api';
 import ArticleRecommendationModal from '../recommendations/ArticleRecommendationModal';
-import { Lightbulb as LightbulbIcon } from '@mui/icons-material';
+import { Lightbulb as LightbulbIcon, SettingsBackupRestore as RestoreIcon, Search as SearchIcon } from '@mui/icons-material';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { revertArticle } from '../../store/redux_slices/rapportSlice';
 
 interface DataTableProps {
   data: Article[];
@@ -33,6 +37,30 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
   const [selectedArticle, setSelectedArticle] = React.useState<Article | null>(null);
   const [modalOpen, setModalOpen] = React.useState(false);
   const [fournisseurMap, setFournisseurMap] = React.useState<Record<string, string>>({});
+
+  const dispatch = useAppDispatch();
+  const { originalDataMap } = useAppSelector((state) => state.rapport);
+
+  // Check if an article has been modified
+  const isArticleModified = (art: Article) => {
+    if (!originalDataMap) return false;
+    const original = originalDataMap[art.reference];
+    if (!original) return false;
+
+    const diffAchat = Math.abs(art.pu_achat - original.pu_achat);
+    const diffGros = Math.abs(art.pu_gros - original.pu_gros);
+
+    const modified = diffAchat > 0.01 || diffGros > 0.01;
+
+    if (modified) {
+      console.log(`Article ${art.reference} modified:`, {
+        current: { pu_achat: art.pu_achat, pu_gros: art.pu_gros },
+        original: original
+      });
+    }
+
+    return modified;
+  };
 
   // Fetch fournisseur names from backend on mount
   React.useEffect(() => {
@@ -141,7 +169,30 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* ... search ... */}
+      {!hideSearch && (
+        <Box sx={{ mb: 2, px: 2 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Rechercher par référence, désignation, fournisseur ou famille..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: '#94a3b8' }} />
+                </InputAdornment>
+              ),
+              sx: {
+                borderRadius: 2,
+                bgcolor: 'white',
+                '& fieldset': { borderColor: '#e2e8f0' },
+                '&:hover fieldset': { borderColor: '#cbd5e1' },
+              }
+            }}
+          />
+        </Box>
+      )}
 
       {/* Table */}
       <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
@@ -328,23 +379,41 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
                       {/* Actions column */}
                       {!hideActions && (
                         <TableCell align="center" sx={cellStyle}>
-                          <Tooltip title="Afficher analyse et recommandations">
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                setSelectedArticle(row);
-                                setModalOpen(true);
-                              }}
-                              sx={{
-                                color: '#4f46e5',
-                                '&:hover': {
-                                  bgcolor: 'rgba(79, 70, 229, 0.1)',
-                                },
-                              }}
-                            >
-                              <LightbulbIcon sx={{ fontSize: '1.2rem' }} />
-                            </IconButton>
-                          </Tooltip>
+                          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                            {isArticleModified(row) && (
+                              <Tooltip title="Annuler les changements (Rétablir valeurs d'origine)">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => dispatch(revertArticle(row.reference))}
+                                  sx={{
+                                    color: '#f97316',
+                                    '&:hover': {
+                                      bgcolor: 'rgba(249, 115, 22, 0.1)',
+                                    },
+                                  }}
+                                >
+                                  <RestoreIcon sx={{ fontSize: '1.2rem' }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            <Tooltip title="Afficher analyse et recommandations">
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  setSelectedArticle(row);
+                                  setModalOpen(true);
+                                }}
+                                sx={{
+                                  color: '#4f46e5',
+                                  '&:hover': {
+                                    bgcolor: 'rgba(79, 70, 229, 0.1)',
+                                  },
+                                }}
+                              >
+                                <LightbulbIcon sx={{ fontSize: '1.2rem' }} />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
                         </TableCell>
                       )}
                     </TableRow>

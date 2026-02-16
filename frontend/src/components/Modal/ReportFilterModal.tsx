@@ -36,9 +36,10 @@ interface ReportFilterModalProps {
   open: boolean;
   onClose: () => void;
   onGenerate?: (params: any) => void;
+  lastParams?: RapportRequest | null;
 }
 
-const ReportFilterModal: React.FC<ReportFilterModalProps> = ({ open, onClose, onGenerate }) => {
+const ReportFilterModal: React.FC<ReportFilterModalProps> = ({ open, onClose, onGenerate, lastParams }) => {
   const [dateDebut, setDateDebut] = useState<Date | null>(new Date());
   const [dateFin, setDateFin] = useState<Date | null>(new Date());
   const [dateStock, setDateStock] = useState<Date | null>(new Date());
@@ -122,6 +123,25 @@ const ReportFilterModal: React.FC<ReportFilterModalProps> = ({ open, onClose, on
     }
   };
 
+  useEffect(() => {
+    if (open) {
+      loadFiltersData();
+    }
+  }, [open]);
+
+  // Sync state with lastParams or defaults
+  useEffect(() => {
+    if (open) {
+      const defaultDate = new Date();
+      setDateDebut(lastParams?.date_debut ? new Date(lastParams.date_debut) : defaultDate);
+      setDateFin(lastParams?.date_fin ? new Date(lastParams.date_fin) : defaultDate);
+      setDateStock(lastParams?.date_stock ? new Date(lastParams.date_stock) : defaultDate);
+      setSelectedFamilles(lastParams?.familles || ['BALLE', 'FRIPPE']);
+      setSelectedFournisseurs(lastParams?.fournisseurs || []);
+      setMinStock(lastParams?.min_stock || 0);
+    }
+  }, [open, lastParams]);
+
   const handleGenerate = async () => {
     // Validation complète du formulaire
     const isFormValid = validateAll();
@@ -154,22 +174,8 @@ const ReportFilterModal: React.FC<ReportFilterModalProps> = ({ open, onClose, on
 
       navigate('/rapport', { state: { rapportParams: params } });
 
-      try {
-        const qs = new URLSearchParams();
-        qs.set('date_debut', params.date_debut);
-        qs.set('date_fin', params.date_fin);
-        qs.set('date_stock', params.date_stock);
-        qs.set('min_stock', String(params.min_stock ?? 0));
-        if (params.familles && params.familles.length) qs.set('familles', params.familles.join(','));
-        if (params.fournisseurs && params.fournisseurs.length) qs.set('fournisseurs', params.fournisseurs.join(','));
-        const analyticsUrl = `${window.location.origin}/analytics?${qs.toString()}`;
-        window.open(analyticsUrl, '_blank');
-      } catch (e) {
-        console.warn('Impossible d ouvrir Analytics dans un nouvel onglet', e);
-      }
-
       onClose();
-      showToast.success('Rapport généré avec succès ! Analytics ouvert dans un nouvel onglet');
+      showToast.success('Rapport mis à jour avec succès !');
     } catch (error: any) {
       showToast.error(error.message || 'Erreur lors de la génération du rapport');
     } finally {
@@ -327,14 +333,14 @@ const ReportFilterModal: React.FC<ReportFilterModalProps> = ({ open, onClose, on
                   onChange={(e) => handleFamillesChange(e.target.value as string[])}
                   renderValue={(selected) => (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {selected.map((value) => (
+                      {selected.map((value: string) => (
                         <Chip key={value} label={value} size="small" />
                       ))}
                     </Box>
                   )}
                 >
                   {/* MODIFIÉ ICI : utiliser famillesList au lieu des valeurs codées en dur */}
-                  {famillesList.map((famille) => (
+                  {famillesList.map((famille: FamilleOption) => (
                     <MenuItem key={famille.code} value={famille.code}>
                       {famille.name}
                     </MenuItem>
@@ -353,8 +359,8 @@ const ReportFilterModal: React.FC<ReportFilterModalProps> = ({ open, onClose, on
                   onChange={(e) => setSelectedFournisseurs(e.target.value as string[])}
                   renderValue={(selected) => (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {selected.map((code) => {
-                        const f = fournisseursList.find((item) => item.code === code);
+                      {selected.map((code: string) => {
+                        const f = fournisseursList.find((item: FournisseurOption) => item.code === code);
                         const label = (f?.name || code);
                         const shortLabel = label.length > 22 ? `${label.slice(0, 20)}…` : label;
                         return (
@@ -369,7 +375,7 @@ const ReportFilterModal: React.FC<ReportFilterModalProps> = ({ open, onClose, on
                     </Box>
                   )}
                 >
-                  {fournisseursList.map((fournisseur) => {
+                  {fournisseursList.map((fournisseur: FournisseurOption) => {
                     const label = fournisseur.name || fournisseur.code;
                     const shortLabel = label.length > 40 ? `${label.slice(0, 38)}…` : label;
                     return (
