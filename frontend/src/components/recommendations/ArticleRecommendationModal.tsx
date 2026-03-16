@@ -20,10 +20,9 @@ import {
   TableCell,
   TableRow,
 } from '@mui/material';
-import { Article } from '../../services/api';
+import { Article, api } from '../../services/api';
 import { updateArticle } from '../../store/redux_slices/rapportSlice';
 import { useAppDispatch } from '../../store/hooks';
-import axios from 'axios';
 
 interface SimulationState {
   pu_achat: number;
@@ -60,13 +59,14 @@ interface AnalysisResponse {
     vente_qte: number;
     stock_qte: number;
     achat_qte: number;
+    production_qte: number;
   };
   sante_article: number;
   recommendations: Recommendation[];
   resume_action: string;
 }
 
-const API_BASE_URL = 'http://localhost:8000/api';
+
 
 const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
   open,
@@ -124,8 +124,8 @@ const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
     setError(null);
 
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/recommendations/detailed-analysis`,
+      const response = await api.post(
+        '/recommendations/detailed-analysis',
         {
           reference: article.reference,
           designation: article.designation,
@@ -137,6 +137,7 @@ const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
           vente_qte: article.vente_qte,
           stock_qte: article.stock_qte,
           achat_qte: article.achat_qte,
+          production_qte: article.production_qte,
         }
       );
       setAnalysis(response.data);
@@ -151,30 +152,34 @@ const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
     if (!article || !analysis) return;
 
     let newAchat = article.pu_achat;
-    let newVente = article.pu_gros; // Using PU Gros as the primary sale price for simulation
+    let newVente = article.pu_gros; 
+    let newRevient = article.pu_revient;
 
     // Logic based on recommendation content
     if (rec.type === 'EQUILIBRE' || rec.type === 'RENTABILITE' || rec.type === 'NEGOCIATION') {
-      // Often suggests reducing cost or increasing price
       if (rec.description.toLowerCase().includes('marge') || rec.type === 'RENTABILITE') {
         newVente = article.pu_gros * 1.08; // Simulate 8% increase
       }
       if (rec.type === 'NEGOCIATION') {
-        newAchat = article.pu_achat * 0.95; // Simulate 5% reduction
+        newAchat = article.pu_achat * 0.95; // Simulate 5% reduction in Devise
+        newRevient = article.pu_revient * 0.95; // Also reduces Revient by 5%
       }
     } else if (rec.type === 'EXPANSION' || rec.type === 'STOCK') {
-      // Suggests reducing price to move volume
       newVente = article.pu_gros * 0.90; // Simulate 10% reduction
     }
 
     // Apply strict rounding rules
     newAchat = getRoundedPurchase(newAchat);
     newVente = getRoundedSale(newVente, article.famille);
+    newRevient = getRoundedPurchase(newRevient); // Round Revient similarly if needed
+
+    // Logic métier: Triage costing 0
+    const costForMarge = article.famille.toUpperCase().includes('TRIAGE') ? 0 : newRevient;
 
     setSimulation({
       pu_achat: newAchat,
       pu_vente: newVente,
-      marge_pct: calculateMarge(newAchat, newVente),
+      marge_pct: calculateMarge(costForMarge, newVente),
       isApplied: false
     });
   };
@@ -182,11 +187,17 @@ const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
   const confirmSimulation = () => {
     if (!article || !simulation) return;
 
+    // We need to estimate the new pu_revient based on simulation logic if we apply it.
+    // For simplicity, if pu_achat was modified, we keep the ratio.
+    const purchaseRatio = simulation.pu_achat / article.pu_achat;
+    const newRevient = article.pu_revient * purchaseRatio;
+
     dispatch(updateArticle({
       reference: article.reference,
       updates: {
         pu_achat: simulation.pu_achat,
         pu_gros: simulation.pu_vente,
+        pu_revient: newRevient,
         marge_pct: simulation.marge_pct
       }
     }));
@@ -311,6 +322,10 @@ const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
                       <TableCell sx={{ fontWeight: 'bold' }}>Achat</TableCell>
                       <TableCell>{analysis.metriques_actuelles.achat_qte.toFixed(0)}</TableCell>
                     </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Production</TableCell>
+                      <TableCell>{(analysis.metriques_actuelles.production_qte || 0).toFixed(0)}</TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               </CardContent>
@@ -390,25 +405,63 @@ const ArticleRecommendationModal: React.FC<RecommendationModalProps> = ({
                   <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mb: 2 }}>
                     <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1, boxShadow: 1 }}>
                       <Typography variant="caption" color="textSecondary">PU Achat</Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#666' }}>{article?.pu_achat.toLocaleString()}</Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{simulation.pu_achat.toLocaleString()}</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                        {article?.pu_achat !== simulation.pu_achat ? (
+                          <>
+                            <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#9e9e9e' }}>
+                              {article?.pu_achat.toLocaleString()}
+                            </Typography>
+                            <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2e7d32', textDecoration: simulation?.isApplied ? 'none' : 'underline' }}>
+                              {simulation.pu_achat.toLocaleString()}
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#333' }}>
+                            {simulation.pu_achat.toLocaleString()}
+                          </Typography>
+                        )}
                       </Box>
                     </Box>
                     <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1, boxShadow: 1 }}>
                       <Typography variant="caption" color="textSecondary">PU Gros</Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#666' }}>{article?.pu_gros.toLocaleString()}</Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>{simulation.pu_vente.toLocaleString()}</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                        {article?.pu_gros !== simulation.pu_vente ? (
+                          <>
+                            <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#9e9e9e' }}>
+                              {article?.pu_gros.toLocaleString()}
+                            </Typography>
+                            <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2e7d32', textDecoration: simulation?.isApplied ? 'none' : 'underline' }}>
+                              {simulation.pu_vente.toLocaleString()}
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#333' }}>
+                            {simulation.pu_vente.toLocaleString()}
+                          </Typography>
+                        )}
                       </Box>
                     </Box>
                     <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 1, boxShadow: 1 }}>
                       <Typography variant="caption" color="textSecondary">Marge</Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#666' }}>{article?.marge_pct.toFixed(1)}%</Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: simulation.marge_pct > (article?.marge_pct || 0) ? '#2e7d32' : '#f44336' }}>
-                          {simulation.marge_pct.toFixed(1)}%
-                        </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                        {Math.abs((article?.marge_pct || 0) - simulation.marge_pct) > 0.01 ? (
+                          <>
+                            <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#9e9e9e' }}>
+                              {article?.marge_pct.toFixed(1)}%
+                            </Typography>
+                            <Typography variant="body1" sx={{ 
+                              fontWeight: 'bold', 
+                              color: simulation.marge_pct > (article?.marge_pct || 0) ? '#2e7d32' : '#f44336',
+                              textDecoration: simulation?.isApplied ? 'none' : 'underline'
+                            }}>
+                              {simulation.marge_pct.toFixed(1)}%
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#333' }}>
+                            {simulation.marge_pct.toFixed(1)}%
+                          </Typography>
+                        )}
                       </Box>
                     </Box>
                   </Box>

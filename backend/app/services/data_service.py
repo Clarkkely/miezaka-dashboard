@@ -29,7 +29,7 @@ LEFT JOIN dbo.DP_INFOLIBREART10 INF10 ON INF10.ART_UK = A.ART_UK
 LEFT JOIN dbo.F_ARTICLE FA ON FA.cbMarq = A.ART_PK
 WHERE
   F.FA_Type = 0
-  AND F.FA_CodeFamille IN ('BALLE','FRIPPE')
+  AND F.FA_CodeFamille IN ('BALLE','FRIPPE','TRIAGE')
   AND A.ART_SOMMEIL IN ('Actif')
   AND ACH.A_DOCDATE BETWEEN ? AND ?
   AND ACH.A_TYPE IN ('Facture comptabilisée', 'Facture', 'Facture de retour comptabilisée', 'Facture de retour')
@@ -63,7 +63,7 @@ LEFT JOIN dbo.DP_INFOLIBREART10 INF10 ON INF10.ART_UK = A.ART_UK
 LEFT JOIN dbo.F_ARTICLE FA ON FA.cbMarq = A.ART_PK
 WHERE
   F.FA_Type = 0
-  AND F.FA_CodeFamille IN ('BALLE','FRIPPE')
+  AND F.FA_CodeFamille IN ('BALLE','FRIPPE','TRIAGE')
   AND A.ART_SOMMEIL IN ('Actif')
   AND DF.DF_DOCDATE BETWEEN ? AND ?
   AND INF6.infolibre6 NOT IN ('C')
@@ -97,7 +97,7 @@ LEFT JOIN dbo.DP_INFOLIBREART10 INF10 ON INF10.ART_UK = A.ART_UK
 LEFT JOIN dbo.F_ARTICLE FA ON FA.cbMarq = A.ART_PK
 WHERE
   F.FA_Type = 0
-  AND F.FA_CodeFamille IN ('BALLE','FRIPPE')
+  AND F.FA_CodeFamille IN ('BALLE','FRIPPE','TRIAGE')
   AND A.ART_SOMMEIL IN ('Actif')
   AND V.V_TYPE IN ('Facture caisse décentralisée comptabilisée', 'Facture comptabilisée', 'Facture', 'Facture caisse décentralisée', 'Facture de retour comptabilisée', 'Facture de retour')
   AND V.V_DOCDATE BETWEEN ? AND ?
@@ -130,7 +130,7 @@ LEFT JOIN dbo.DP_INFOLIBREART10 INF10 ON INF10.ART_UK = A.ART_UK
 LEFT JOIN dbo.F_ARTICLE FA ON FA.cbMarq = A.ART_PK
 WHERE
   F.FA_Type = 0
-  AND F.FA_CodeFamille IN ('BALLE','FRIPPE')
+  AND F.FA_CodeFamille IN ('BALLE','FRIPPE','TRIAGE')
   AND A.ART_SOMMEIL IN ('Actif')
   AND STD.STD_DEINTITULE NOT IN ('Z DEPOT HUGUES','Z DEPOT RIZOU','Z INV 2024','Z INVENTAIRE','Z KARENJY','Z MIEZAKA','Z RETOUR PALETTE','Z TAVE PAUL (HUGUES)')
   AND STD.STD_DLDATEBL <= ?
@@ -164,7 +164,7 @@ LEFT JOIN dbo.DP_INFOLIBREART10 INF10 ON INF10.ART_UK = A.ART_UK
 LEFT JOIN dbo.F_ARTICLE FA ON FA.cbMarq = A.ART_PK
 WHERE
   F.FA_Type = 0
-  AND F.FA_CodeFamille IN ('BALLE','FRIPPE')
+  AND F.FA_CodeFamille IN ('BALLE','FRIPPE','TRIAGE')
   AND A.ART_SOMMEIL IN ('Actif')
   AND STD.STD_DEINTITULE NOT IN ('Z DEPOT HUGUES','Z DEPOT RIZOU','Z INV 2024','Z INVENTAIRE','Z KARENJY','Z MIEZAKA','Z RETOUR PALETTE','Z TAVE PAUL (HUGUES)')
   AND STD.STD_DLDATEBL <= ?
@@ -255,15 +255,25 @@ def generate_rapport(params):
             df["Fournisseur_Nom"] = "ANCIENS FRNS"
         
         # Calculs
-        df['Montant_Disponible'] = df['stock_qte'] * df['ART_POIDSBRUT']
+        # Montant_Disponible = Valeur monétaire du stock (qte * prix)
+        df['Montant_Disponible'] = df['stock_qte'] * df['AR_PrixAchNouv']
+        
         df['Pct_Vente'] = np.where(
             (df['report_qte'] + df['achat_qte'] + df['prod_qte']) > 0,
             (df['vente_qte'] / (df['report_qte'] + df['achat_qte'] + df['prod_qte'])) * 100,
             0
         )
+        # Marge réelle basée sur le CA TTC (vente_montant) et le coût d'achat calculé au prorata
+        # Logique métier : Si l'article est vendu au KG (POIDSNET > 1), on ramène la qte à l'unité (balle)
+        # Coût = (Vente_Qte / Poids_Nominal) * Prix_Balle
+        weight_factor = np.where(df['ART_POIDSNET'] > 1, df['ART_POIDSNET'], 1)
+        ball_qte = df['vente_qte'] / weight_factor
+        
+        # Pour le TRIAGE (pièces), on considère un coût de 0 car ce sont des articles issus d'une balle déjà coûtée.
+        cost_of_goods = np.where(df['FA_CodeFamille'] == 'TRIAGE', 0, ball_qte * df['AR_PrixAchNouv'])
         df['Marge_%'] = np.where(
-            df['AR_PrixVenNouv'] > 0,
-            ((df['AR_PrixVenNouv'] - df['ART_POIDSBRUT']) / df['AR_PrixVenNouv']) * 100,
+            df['vente_montant'] > 0,
+            ((df['vente_montant'] - cost_of_goods) / df['vente_montant']) * 100,
             0
         )
         

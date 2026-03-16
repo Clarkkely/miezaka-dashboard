@@ -1,10 +1,17 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from app.database import db
 import pandas as pd
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
+from datetime import datetime
 
 router = APIRouter()
+
+
+def _parse_date(date_str: Optional[str]) -> Optional[datetime]:
+    if not date_str:
+        return None
+    return datetime.strptime(date_str, "%Y-%m-%d")
 
 class ArticleAnalysisRequest(BaseModel):
     """Données d'un article pour analyse détaillée"""
@@ -18,6 +25,7 @@ class ArticleAnalysisRequest(BaseModel):
     vente_qte: float
     stock_qte: float
     achat_qte: float
+    production_qte: float
 
 @router.post("/recommendations/detailed-analysis")
 async def get_detailed_analysis(article: ArticleAnalysisRequest):
@@ -144,7 +152,8 @@ async def get_detailed_analysis(article: ArticleAnalysisRequest):
                 "marge_pct": article.marge_pct,
                 "vente_qte": article.vente_qte,
                 "stock_qte": article.stock_qte,
-                "achat_qte": article.achat_qte
+                "achat_qte": article.achat_qte,
+                "production_qte": article.production_qte
             },
             "sante_article": score_sante,
             "recommendations": recommendations,
@@ -175,11 +184,16 @@ def get_action_summary(recommendations: List[Dict], article: ArticleAnalysisRequ
         return "🟢 SUIVI: Article performant - suivi régulier"
 
 @router.get("/recommendations")
-async def get_recommendations():
+def get_recommendations(
+    date_debut: Optional[str] = Query(default=None),
+    date_fin: Optional[str] = Query(default=None),
+):
     """
     Moteur de recommandations automatiques basé sur règles métier
     """
     try:
+        d_start = _parse_date(date_debut)
+        d_end = _parse_date(date_fin)
         with db.get_connection() as conn:
             # Données pour analyse
             query = """
@@ -188,6 +202,7 @@ async def get_recommendations():
                     STD_ART_UK,
                     MAX(STD_DLDATEBL) AS max_date
                 FROM dbo.DP_STOCK_A_DATE
+                WHERE STD_DLDATEBL >= DATEADD(day, -10, GETDATE())
                 GROUP BY STD_ART_UK
             ),
             ventes_mensuelles AS (
@@ -198,10 +213,14 @@ async def get_recommendations():
                     SELECT 
                         VL.VL_ART_UK,
                         FORMAT(V.V_DOCDATE, 'yyyy-MM') as mois,
-                        SUM(VL.QTEVENDUES) as vente_mensuelle
+                        SUM(CASE WHEN F2.FA_CodeFamille = 'TRIAGE' THEN VL.QTEVENDUES ELSE (VL.QTEVENDUES / NULLIF(CASE WHEN A2.ART_POIDSNET > 1 THEN A2.ART_POIDSNET ELSE 1 END, 0)) END) as vente_mensuelle
                     FROM dbo.DP_VENTES V
-                    JOIN dbo.DP_VENTES_LIGNES VL ON V.V_DOCNUMBIN = VL.VL_DOCNUMBIN
-                    WHERE V.V_DOCDATE >= DATEADD(MONTH, -3, GETDATE())
+                    JOIN dbo.DP_VENTES_LIGNES VL ON V.V_DOCNUMBIN = VL.VL_DOCNUMBIN AND V.V_DOCTYPE = VL.VL_DOCTYPE
+                    JOIN dbo.DP_ARTICLES A2 ON A2.ART_UK = VL.VL_ART_UK
+                    LEFT JOIN dbo.F_FAMILLE F2 ON F2.FA_CODEFAMILLE = A2.ART_FACODEFAMILLE
+                    WHERE V.V_TYPE IN ('Facture caisse décentralisée comptabilisée', 'Facture comptabilisée', 'Facture', 'Facture caisse décentralisée', 'Facture de retour comptabilisée', 'Facture de retour')
+                      AND (? IS NULL OR V.V_DOCDATE >= ?)
+                      AND (? IS NULL OR V.V_DOCDATE <= ?)
                     GROUP BY VL.VL_ART_UK, FORMAT(V.V_DOCDATE, 'yyyy-MM')
                 ) sub
                 GROUP BY VL_ART_UK
@@ -211,13 +230,14 @@ async def get_recommendations():
                 A.ART_LIB as designation,
                 COALESCE(STD.STD_QTE, 0) as stock_qte,
                 COALESCE(VM.vente_moy_mensuelle, 0) as vente_mensuelle,
-                COALESCE(VL_TOTAL.ca_total, 0) as ca_total,
+                COALESCE(VL_TOTAL.ca_ttc, 0) as ca_total,
                 CASE 
-                    WHEN VL_TOTAL.ca_total > 0 
-                    THEN ((VL_TOTAL.ca_total - (VL_TOTAL.qte_total * A.ART_PRIXACH)) / VL_TOTAL.ca_total) * 100
+                    WHEN COALESCE(VL_TOTAL.ca_ttc, 0) > 0 
+                    THEN ((COALESCE(VL_TOTAL.ca_ttc, 0) - COALESCE(VL_TOTAL.cout_revient, 0)) / COALESCE(VL_TOTAL.ca_ttc, 0)) * 100
                     ELSE 0
                 END as marge_pct
             FROM dbo.DP_ARTICLES A
+            LEFT JOIN dbo.F_ARTICLE FA ON FA.cbMarq = A.ART_PK
             LEFT JOIN latest_stock LS ON LS.STD_ART_UK = A.ART_UK
             LEFT JOIN dbo.DP_STOCK_A_DATE STD 
                 ON STD.STD_ART_UK = LS.STD_ART_UK 
@@ -225,17 +245,39 @@ async def get_recommendations():
             LEFT JOIN ventes_mensuelles VM ON VM.VL_ART_UK = A.ART_UK
             LEFT JOIN (
                 SELECT 
-                    VL_ART_UK,
-                    SUM(CATTCNet) as ca_total,
-                    SUM(QTEVENDUES) as qte_total
-                FROM dbo.DP_VENTES_LIGNES
-                GROUP BY VL_ART_UK
+                    VL.VL_ART_UK,
+                    SUM(COALESCE(VL.CATTCNet, 0)) as ca_ttc,
+                    SUM(CASE WHEN F3.FA_CodeFamille = 'TRIAGE' THEN 0 ELSE (VL.QTEVENDUES / NULLIF(CASE WHEN ART.ART_POIDSNET > 1 THEN ART.ART_POIDSNET ELSE 1 END, 0)) * COALESCE(FA2.AR_PrixAchNouv, 0) END) as cout_revient,
+                    SUM(CASE WHEN F3.FA_CodeFamille = 'TRIAGE' THEN VL.QTEVENDUES ELSE (VL.QTEVENDUES / NULLIF(CASE WHEN ART.ART_POIDSNET > 1 THEN ART.ART_POIDSNET ELSE 1 END, 0)) END) as qte_total
+                FROM dbo.DP_VENTES_LIGNES VL
+                JOIN dbo.DP_VENTES V ON V.V_DOCNUMBIN = VL.VL_DOCNUMBIN AND V.V_DOCTYPE = VL.VL_DOCTYPE
+                JOIN dbo.DP_ARTICLES ART ON ART.ART_UK = VL.VL_ART_UK
+                LEFT JOIN dbo.F_ARTICLE FA2 ON FA2.cbMarq = ART.ART_PK
+                LEFT JOIN dbo.F_FAMILLE F3 ON F3.FA_CODEFAMILLE = ART.ART_FACODEFAMILLE
+                WHERE V.V_TYPE IN ('Facture caisse décentralisée comptabilisée', 'Facture comptabilisée', 'Facture', 'Facture caisse décentralisée', 'Facture de retour comptabilisée', 'Facture de retour')
+                  AND (? IS NULL OR V.V_DOCDATE >= ?)
+                  AND (? IS NULL OR V.V_DOCDATE <= ?)
+                GROUP BY VL.VL_ART_UK
             ) VL_TOTAL ON VL_TOTAL.VL_ART_UK = A.ART_UK
             LEFT JOIN dbo.F_FAMILLE F ON F.FA_CODEFAMILLE = A.ART_FACODEFAMILLE
             WHERE A.ART_SOMMEIL = 'Actif'
                 AND F.FA_CodeFamille IN ('BALLE', 'FRIPPE', 'TRIAGE')
+                AND A.ART_NUM NOT IN ('REPORT_FACT_ADD','REPORT_FACT_FRIP','REPORT_FACT_HYG','REPORT_FACT_LUM','REPORT_FACT_PET','REPORT_FACT_PNEU','REPORT_FACT_PPN','REPORT_FACT_QUIN','REPORT_FACTURE')
             """
-            df = pd.read_sql(query, conn)
+            df = pd.read_sql(
+                query,
+                conn,
+                params=[
+                    d_start,
+                    d_start,
+                    d_end,
+                    d_end,
+                    d_start,
+                    d_start,
+                    d_end,
+                    d_end,
+                ],
+            )
             
             # Règles de recommandation
             reapprovisionner = []
@@ -258,54 +300,63 @@ async def get_recommendations():
                     "marge_pct": round(marge, 1)
                 }
                 
-                # Règle 1: Réapprovisionner
-                if stock > 0 and vente_moy > 0:
-                    mois_stock = stock / vente_moy if vente_moy > 0 else 999
-                    if mois_stock < 2 and marge > 0:
+                # Règle 1: Réapprovisionner - Ventes régulières mais stock qui va durer moins de 1.5 mois
+                if vente_moy > 0:
+                    mois_stock = stock / vente_moy
+                    if mois_stock < 1.5 and marge > 0:
                         reapprovisionner.append({
                             **article_info,
-                            "raison": f"Stock pour {mois_stock:.1f} mois seulement",
-                            "action": f"Commander {int(vente_moy * 3)} unités"
+                            "raison": f"Stock restant pour {mois_stock:.1f} mois",
+                            "action": f"Commander {int(vente_moy * 2)} unités pour sécuriser"
                         })
                 
-                # Règle 2: Surveiller
-                if 5 < marge < 15 and ca > 0:
+                # Règle 2: Surveiller - Ventes correctes mais marge < 10%
+                if vente_moy > 0 and 0 <= marge < 10 and ca > 0:
                     surveiller.append({
                         **article_info,
-                        "raison": "Marge faible mais ventes présentes",
-                        "action": "Analyser coûts et prix"
+                        "raison": f"Marge très faible ({marge:.1f}%) malgré les ventes",
+                        "action": "Vérifier le coût d'achat et la décote"
                     })
                 
-                # Règle 3: Arrêter/Liquider
-                if vente_moy == 0 and stock > 0 and marge < 0:
+                # Règle 3: Arrêter/Liquider - Soit pas de ventes et du stock, soit vendu à perte
+                if (vente_moy == 0 and stock > 0) or (marge < 0 and ca > 0):
+                    raison = "Aucune vente, stock dormant" if vente_moy == 0 else f"Vendu à perte (Marge {marge:.1f}%)"
                     arreter.append({
                         **article_info,
-                        "raison": "Aucune vente et marge négative",
-                        "action": "Liquider le stock"
+                        "raison": raison,
+                        "action": "Liquider le stock / Stopper l'achat"
                     })
                 
-                # Règle 4: Augmenter prix
-                if vente_moy > 10 and marge < 10 and stock < vente_moy:
+                # Règle 4: Augmenter prix - Faible marge mais très forte demande (risque rupture)
+                if vente_moy > 0 and marge < 15 and stock < (vente_moy * 2):
                     augmenter_prix.append({
                         **article_info,
-                        "raison": "Forte demande, marge faible",
-                        "action": "Augmenter prix de 5-10%"
+                        "raison": "Forte demande et stock bas",
+                        "action": "Augmenter le prix de 5-10% pour maximiser la marge"
                     })
                 
-                # Règle 5: Promotion
-                if stock > vente_moy * 3 and vente_moy > 0 and marge > 15:
+                # Règle 5: Promotion - Surstock (> 4 mois de ventes) et marge confortable
+                if vente_moy > 0:
+                    mois_stock = stock / vente_moy
+                    if mois_stock > 4 and marge > 15:
+                        promotion.append({
+                            **article_info,
+                            "raison": f"Sur-stock important ({mois_stock:.1f} mois)",
+                            "action": "Promotion ou remise pour accélérer la rotation"
+                        })
+                elif vente_moy == 0 and stock > 10:
                     promotion.append({
                         **article_info,
-                        "raison": "Stock élevé, marge acceptable",
-                        "action": "Faire promotion pour écouler"
+                        "raison": "Stock dormant important",
+                        "action": "Forte démarque pour liquider"
                     })
             
             return {
-                "reapprovisionner": reapprovisionner[:20],
-                "surveiller": surveiller[:20],
-                "arreter": arreter[:20],
-                "augmenter_prix": augmenter_prix[:20],
-                "promotion": promotion[:20],
+                "reapprovisionner": reapprovisionner,
+                "surveiller": surveiller,
+                "arreter": arreter,
+                "augmenter_prix": augmenter_prix,
+                "promotion": promotion,
                 "stats": {
                     "total_recommandations": (
                         len(reapprovisionner) + len(surveiller) + 

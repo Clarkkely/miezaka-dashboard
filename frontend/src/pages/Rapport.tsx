@@ -207,6 +207,17 @@ const Rapport: React.FC = () => {
           >
             Retour
           </Button>
+          <Box
+            component="img"
+            src="/logoM.jpeg"
+            alt="Miezaka Logo"
+            sx={{
+              width: 32,
+              height: 32,
+              objectFit: 'contain',
+              borderRadius: '50%'
+            }}
+          />
           <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b' }}>
             Rapport de Mouvements
           </Typography>

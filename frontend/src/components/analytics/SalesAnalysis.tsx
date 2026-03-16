@@ -29,7 +29,8 @@ import {
     ResponsiveContainer,
 } from 'recharts';
 import { Warning as WarningIcon, Print as PrintIcon } from '@mui/icons-material';
-import axios from 'axios';
+import { api } from '../../services/api';
+import { useAppSelector } from '../../store/hooks';
 
 interface SalesData {
     evolution_mensuelle: Array<{
@@ -53,6 +54,7 @@ interface SalesData {
 }
 
 const SalesAnalysis: React.FC = () => {
+    const lastParams = useAppSelector((state) => state.analytics.lastParams);
     const [data, setData] = useState<SalesData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -62,7 +64,12 @@ const SalesAnalysis: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/analytics/sales-analysis');
+                const response = await api.get('/analytics/sales-analysis', {
+                    params: {
+                        date_debut: lastParams?.date_debut,
+                        date_fin: lastParams?.date_fin,
+                    },
+                });
                 setData(response.data);
             } catch (error) {
                 console.error('Error fetching sales analysis:', error);
@@ -73,7 +80,7 @@ const SalesAnalysis: React.FC = () => {
         };
 
         fetchData();
-    }, []);
+    }, [lastParams?.date_debut, lastParams?.date_fin]);
 
     if (loading) {
         return (
@@ -105,10 +112,17 @@ const SalesAnalysis: React.FC = () => {
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('fr-FR', {
-            style: 'currency',
-            currency: 'MGA',
-            minimumFractionDigits: 0,
-        }).format(value);
+            maximumFractionDigits: 0,
+        }).format(value) + ' MGA';
+    };
+
+    const formatCompactCurrency = (value: number) => {
+        if (value >= 1000000) {
+            return (value / 1000000).toFixed(1) + 'M MGA';
+        } else if (value >= 1000) {
+            return (value / 1000).toFixed(0) + 'k MGA';
+        }
+        return value.toString() + ' MGA';
     };
 
     const handlePrintArticlesZeroVente = () => {
@@ -184,14 +198,20 @@ const SalesAnalysis: React.FC = () => {
                             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                                 Évolution des Ventes (6 derniers mois)
                             </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <LineChart data={data.evolution_mensuelle}>
+                            <ResponsiveContainer width="100%" height={350}>
+                                <LineChart data={data.evolution_mensuelle} margin={{ top: 20, right: 30, left: 40, bottom: 20 }}>
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="mois" />
-                                    <YAxis yAxisId="left" />
-                                    <YAxis yAxisId="right" orientation="right" />
-                                    <Tooltip formatter={(value: any) => formatCurrency(value)} />
-                                    <Legend />
+                                    <XAxis dataKey="mois" tick={{ fontSize: 11 }} />
+                                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+                                    <YAxis yAxisId="right" orientation="right" tickFormatter={formatCompactCurrency} width={80} tick={{ fontSize: 11 }} />
+                                    <Tooltip 
+                                        formatter={(value: any, name: any) => {
+                                            if (name === 'CA (MGA)' || name === 'ca_total') return [formatCurrency(value), 'CA'];
+                                            if (name === 'Quantité' || name === 'qte_totale') return [value, 'Quantité'];
+                                            return [value, name];
+                                        }}
+                                    />
+                                    <Legend wrapperStyle={{ paddingTop: '10px' }} />
                                     <Line
                                         yAxisId="left"
                                         type="monotone"
@@ -221,12 +241,17 @@ const SalesAnalysis: React.FC = () => {
                             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                                 Top 10 Articles Vendus
                             </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={data.top_10_articles} layout="vertical">
+                            <ResponsiveContainer width="100%" height={350}>
+                                <BarChart data={data.top_10_articles} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" />
-                                    <YAxis dataKey="article" type="category" width={120} tick={{ fontSize: 10 }} />
-                                    <Tooltip />
+                                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                                    <YAxis dataKey="article" type="category" width={100} tick={{ fontSize: 10 }} />
+                                    <Tooltip 
+                                        formatter={(value: any, name: any) => {
+                                            if (name === 'Quantité' || name === 'qte_vendue') return [value, 'Quantité'];
+                                            return [value, name];
+                                        }}
+                                    />
                                     <Bar dataKey="qte_vendue" fill="#10b981" name="Quantité" />
                                 </BarChart>
                             </ResponsiveContainer>

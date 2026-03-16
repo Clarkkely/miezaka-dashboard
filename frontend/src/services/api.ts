@@ -1,8 +1,10 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL =
+  process.env.REACT_APP_API_BASE_URL ||
+  (process.env.NODE_ENV === 'development' ? 'http://localhost:8000/api' : '/api');
 
-const api = axios.create({
+export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
@@ -43,7 +45,7 @@ export interface Article {
   designation: string;
   famille: string;
   fournisseur: string;
-  infotlib6?: string;  // For Ciblage.pdf 2nd sub-column
+  infotlib6?: string;
   poids_uv: number;
   pu_achat: number;
   pu_revient: number;
@@ -149,6 +151,21 @@ export const analyticsAPI = {
 
   async getPredictions(params: RapportRequest): Promise<PredictionResponse> {
     const response = await api.post('/rapport/analytics/predictions', params);
+    return response.data;
+  },
+
+  async getSalesForecast(filters?: Record<string, any>): Promise<any> {
+    const response = await api.get('/predictions/sales-forecast', { params: filters });
+    return response.data;
+  },
+
+  async getStockForecast(filters?: Record<string, any>): Promise<any> {
+    const response = await api.get('/predictions/stock-forecast', { params: filters });
+    return response.data;
+  },
+
+  async getArticleClassification(filters?: Record<string, any>): Promise<any> {
+    const response = await api.get('/predictions/classification', { params: filters });
     return response.data;
   }
 };

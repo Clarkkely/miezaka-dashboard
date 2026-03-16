@@ -10,7 +10,7 @@ router = APIRouter()
 
 # ==================== ENDPOINT FAMILLES ====================
 @router.get("/familles")
-async def get_familles() -> List[Dict[str, str]]:
+def get_familles() -> List[Dict[str, str]]:
     """
     Récupère les familles d'articles autorisées (FRIPPE, BALLE, TRIAGE uniquement)
     """
@@ -27,7 +27,7 @@ async def get_familles() -> List[Dict[str, str]]:
 
 # ==================== ENDPOINT FOURNISSEURS ====================
 @router.get("/fournisseurs")
-async def get_fournisseurs() -> List[Dict[str, str]]:
+def get_fournisseurs() -> List[Dict[str, str]]:
     """
     Récupère tous les fournisseurs possibles selon la formule de nommage
     """
@@ -67,7 +67,7 @@ async def get_fournisseurs() -> List[Dict[str, str]]:
 
 
 @router.post("/generate", response_model=RapportResponse)
-async def generer_rapport(request: RapportRequest):
+def generer_rapport(request: RapportRequest):
     try:
         df = generate_rapport(request)
         
@@ -83,7 +83,7 @@ async def generer_rapport(request: RapportRequest):
                 infotlib6=str(row['infolibre6']) if ('infolibre6' in df.columns and pd.notna(row['infolibre6'])) else None,
                 poids_uv=float(row['ART_POIDSNET']),
                 pu_achat=float(row['ART_PRIXACH']),
-                pu_revient=float(row['ART_POIDSBRUT']),
+                pu_revient=float(row['AR_PrixAchNouv']),
                 pu_gros=float(row['AR_PrixVenNouv']),
                 report_qte=float(row['report_qte']),
                 report_poids=float(row['report_poids']),
@@ -354,11 +354,14 @@ async def get_top_suppliers():
                 SELECT TOP 10
                     RTRIM(COALESCE(C.CT_Intitule, A.ART_FOURPRINC)) as name,
                     COUNT(DISTINCT A.ART_UK) as articles,
-                    COALESCE(SUM(VL.CATTCNet), 0) as ventes
+                    SUM(CASE WHEN A.ART_POIDSNET != 1 THEN VL.QTEVENDUES * A.ART_POIDSNET ELSE VL.QTEVENDUES END * FA.AR_PrixVenNouv) as ventes
                 FROM dbo.DP_ARTICLES A
+                LEFT JOIN dbo.F_ARTICLE FA ON FA.cbMarq = A.ART_PK
                 LEFT JOIN dbo.F_COMPTET C ON C.CT_Num = A.ART_FOURPRINC
                 LEFT JOIN dbo.DP_VENTES_LIGNES VL ON VL.VL_ART_UK = A.ART_UK
+                JOIN dbo.DP_VENTES V ON V.V_DOCNUMBIN = VL.VL_DOCNUMBIN AND V.V_DOCTYPE = VL.VL_DOCTYPE
                 WHERE A.ART_SOMMEIL = 'Actif'
+                  AND V.V_DOCDATE >= DATEADD(day, -30, CAST(GETDATE() as DATE))
                   AND (C.CT_Intitule IS NULL OR C.CT_Intitule NOT LIKE '%TIERS A CREER%')
                   AND A.ART_FOURPRINC NOT LIKE 'REPORT%'
                 GROUP BY COALESCE(C.CT_Intitule, A.ART_FOURPRINC)
@@ -385,17 +388,20 @@ async def get_profit_margin():
                     LEFT(A.ART_LIB, 30) as designation,
                     A.ART_FACODEFAMILLE as famille,
                     COALESCE(SUM(VL.QteVendues), 0) as qte_vendues,
-                    COALESCE(SUM(VL.CATTCNet), 0) as montant_vente,
+                    SUM(CASE WHEN A.ART_POIDSNET != 1 THEN VL.QTEVENDUES * A.ART_POIDSNET ELSE VL.QTEVENDUES END * FA.AR_PrixVenNouv) as montant_vente,
                     CAST(CASE 
-                        WHEN SUM(VL.CATTCNet) > 0 
-                        THEN ((SUM(VL.CATTCNet) - (SUM(VL.QteVendues) * A.ART_PRIXACH)) / SUM(VL.CATTCNet) * 100)
+                        WHEN FA.AR_PrixVenNouv > 0 
+                        THEN ((FA.AR_PrixVenNouv - FA.AR_PrixAchNouv) / FA.AR_PrixVenNouv * 100)
                         ELSE 0 
                     END AS FLOAT) as marge_pct
                 FROM dbo.DP_ARTICLES A
+                LEFT JOIN dbo.F_ARTICLE FA ON FA.cbMarq = A.ART_PK
                 LEFT JOIN dbo.DP_VENTES_LIGNES VL ON VL.VL_ART_UK = A.ART_UK
+                JOIN dbo.DP_VENTES V ON V.V_DOCNUMBIN = VL.VL_DOCNUMBIN AND V.V_DOCTYPE = VL.VL_DOCTYPE
                 WHERE A.ART_SOMMEIL = 'Actif'
-                GROUP BY A.ART_NUM, A.ART_LIB, A.ART_FACODEFAMILLE, A.ART_PRIXACH
-                HAVING SUM(VL.CATTCNet) > 0
+                  AND V.V_DOCDATE >= DATEADD(day, -30, CAST(GETDATE() as DATE))
+                GROUP BY A.ART_NUM, A.ART_LIB, A.ART_FACODEFAMILLE, FA.AR_PrixVenNouv, FA.AR_PrixAchNouv
+                HAVING SUM(VL.QTEVENDUES) > 0
                 ORDER BY marge_pct DESC
                 """
                 df = pd.read_sql(query, conn)
@@ -440,7 +446,7 @@ async def get_predictions(request: RapportRequest):
                 "marge_pct": float(row.get('Marge_%', 0)),
                 "poids_uv": float(row.get('ART_POIDSNET', 0)),
                 "pu_achat": float(row.get('ART_PRIXACH', 0)),
-                "pu_revient": float(row.get('ART_POIDSBRUT', 0)),
+                "pu_revient": float(row.get('AR_PrixAchNouv', 0)),
                 "pu_gros": float(row.get('AR_PrixVenNouv', 0)),
                 "montant_disponible": float(row.get('Montant_Disponible', 0))
             }

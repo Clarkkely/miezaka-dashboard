@@ -13,7 +13,8 @@ import {
     ResponsiveContainer,
     Cell,
 } from 'recharts';
-import axios from 'axios';
+import { api } from '../../services/api';
+import { useAppSelector } from '../../store/hooks';
 
 interface ProfitabilityData {
     marge_par_article: Array<{
@@ -44,6 +45,7 @@ const FAMILLE_COLORS: { [key: string]: string } = {
 };
 
 const ProfitabilityCharts: React.FC = () => {
+    const lastParams = useAppSelector((state) => state.analytics.lastParams);
     const [data, setData] = useState<ProfitabilityData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -52,7 +54,12 @@ const ProfitabilityCharts: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/analytics/profitability');
+                const response = await api.get('/analytics/profitability', {
+                    params: {
+                        date_debut: lastParams?.date_debut,
+                        date_fin: lastParams?.date_fin,
+                    },
+                });
                 setData(response.data);
             } catch (error) {
                 console.error('Error fetching profitability data:', error);
@@ -63,7 +70,7 @@ const ProfitabilityCharts: React.FC = () => {
         };
 
         fetchData();
-    }, []);
+    }, [lastParams?.date_debut, lastParams?.date_fin]);
 
     if (loading) {
         return (
@@ -95,10 +102,17 @@ const ProfitabilityCharts: React.FC = () => {
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('fr-FR', {
-            style: 'currency',
-            currency: 'MGA',
-            minimumFractionDigits: 0,
-        }).format(value);
+            maximumFractionDigits: 0,
+        }).format(value) + ' MGA';
+    };
+
+    const formatCompactCurrency = (value: number) => {
+        if (value >= 1000000) {
+            return (value / 1000000).toFixed(1) + 'M MGA';
+        } else if (value >= 1000) {
+            return (value / 1000).toFixed(0) + 'k MGA';
+        }
+        return value.toString() + ' MGA';
     };
 
     return (
@@ -119,19 +133,19 @@ const ProfitabilityCharts: React.FC = () => {
                         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                             Top 20 Articles par Marge
                         </Typography>
-                        <ResponsiveContainer width="100%" height={400}>
-                            <BarChart data={data.marge_par_article}>
+                        <ResponsiveContainer width="100%" height={450}>
+                            <BarChart data={data.marge_par_article} margin={{ top: 20, right: 30, left: 40, bottom: 80 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="article" angle={-45} textAnchor="end" height={150} interval={0} tick={{ fontSize: 10 }} />
-                                <YAxis />
+                                <XAxis dataKey="article" angle={-45} textAnchor="end" height={100} interval={0} tick={{ fontSize: 11 }} />
+                                <YAxis tickFormatter={formatCompactCurrency} width={80} tick={{ fontSize: 11 }} />
                                 <Tooltip
-                                    formatter={(value: any, name?: string) => {
-                                        if (name === 'marge_absolue') return formatCurrency(value);
-                                        if (name === 'marge_pct') return `${value.toFixed(1)}%`;
-                                        return value;
+                                    formatter={(value: any, name: any) => {
+                                        if (name === 'Marge (MGA)' || name === 'marge_absolue') return [formatCurrency(value), 'Marge'];
+                                        if (name === 'marge_pct') return [`${value.toFixed(1)}%`, 'Taux de Marge'];
+                                        return [value, name];
                                     }}
                                 />
-                                <Legend />
+                                <Legend wrapperStyle={{ paddingTop: '20px' }} />
                                 <Bar dataKey="marge_absolue" fill="#10b981" name="Marge (MGA)" />
                             </BarChart>
                         </ResponsiveContainer>
@@ -145,19 +159,19 @@ const ProfitabilityCharts: React.FC = () => {
                         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                             Marge par Fournisseur
                         </Typography>
-                        <ResponsiveContainer width="100%" height={400}>
-                            <BarChart data={data.marge_par_fournisseur}>
+                        <ResponsiveContainer width="100%" height={450}>
+                            <BarChart data={data.marge_par_fournisseur} margin={{ top: 20, right: 30, left: 40, bottom: 80 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="fournisseur" angle={-45} textAnchor="end" height={100} />
-                                <YAxis />
+                                <XAxis dataKey="fournisseur" angle={-45} textAnchor="end" height={100} interval={0} tick={{ fontSize: 11 }} />
+                                <YAxis tickFormatter={formatCompactCurrency} width={80} tick={{ fontSize: 11 }} />
                                 <Tooltip
-                                    formatter={(value: any, name?: string) => {
-                                        if (name === 'marge_absolue') return formatCurrency(value);
-                                        if (name === 'marge_pct') return `${value.toFixed(1)}%`;
-                                        return value;
+                                    formatter={(value: any, name: any) => {
+                                        if (name === 'Marge (MGA)' || name === 'marge_absolue') return [formatCurrency(value), 'Marge'];
+                                        if (name === 'marge_pct') return [`${value.toFixed(1)}%`, 'Taux de Marge'];
+                                        return [value, name];
                                     }}
                                 />
-                                <Legend />
+                                <Legend wrapperStyle={{ paddingTop: '20px' }} />
                                 <Bar dataKey="marge_absolue" fill="#3b82f6" name="Marge (MGA)" />
                             </BarChart>
                         </ResponsiveContainer>
@@ -171,16 +185,19 @@ const ProfitabilityCharts: React.FC = () => {
                         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                             Quantité Vendue vs Marge (par Famille)
                         </Typography>
-                        <ResponsiveContainer width="100%" height={400}>
-                            <ScatterChart>
+                        <ResponsiveContainer width="100%" height={450}>
+                            <ScatterChart margin={{ top: 20, right: 30, left: 40, bottom: 40 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis type="number" dataKey="qte_vendue" name="Quantité Vendue" />
-                                <YAxis type="number" dataKey="marge" name="Marge" />
+                                <XAxis type="number" dataKey="qte_vendue" name="Quantité Vendue" tick={{ fontSize: 11 }} />
+                                <YAxis type="number" dataKey="marge" name="Marge" tickFormatter={formatCompactCurrency} width={80} tick={{ fontSize: 11 }} />
                                 <Tooltip
                                     cursor={{ strokeDasharray: '3 3' }}
-                                    formatter={(value: any) => formatCurrency(value)}
+                                    formatter={(value: any, name: any) => {
+                                        if (name === 'Marge') return [formatCurrency(value), name];
+                                        return [value, name]; // Quantité sans unité
+                                    }}
                                 />
-                                <Legend />
+                                <Legend wrapperStyle={{ paddingTop: '10px' }} />
                                 {Object.keys(FAMILLE_COLORS).map((famille) => (
                                     <Scatter
                                         key={famille}

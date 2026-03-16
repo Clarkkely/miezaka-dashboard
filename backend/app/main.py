@@ -1,8 +1,10 @@
+# Force reload - predictions fix
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import rapport, analytics_advanced, predictions, recommendations
 import time
 
+print("🚀 BACKEND RELOADED - PREDICTIONS READY")
 app = FastAPI(
     title="API MIEZAKA",
     description="API pour le tableau de bord MIEZAKA",

@@ -46,6 +46,8 @@ import KPICards from '../components/analytics/KPICards';
 import ProfitabilityCharts from '../components/analytics/ProfitabilityCharts';
 import SalesAnalysis from '../components/analytics/SalesAnalysis';
 import RecommendationsPanel from '../components/recommendations/RecommendationsPanel';
+import PredictionsCharts from '../components/analytics/PredictionsCharts';
+import ArticleClassification from '../components/analytics/ArticleClassification';
 
 const COLORS = ['#2563eb', '#0891b2', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -67,6 +69,14 @@ export const Analytics: React.FC = () => {
     lastFetched,
     cacheValidity
   } = useAppSelector((state) => state.analytics);
+
+  const periodLabel = (() => {
+    const paramsFromLocation = (location.state as any)?.rapportParams;
+    const start = (paramsFromLocation || lastParams)?.date_debut;
+    const end = (paramsFromLocation || lastParams)?.date_fin;
+    if (!start || !end) return null;
+    return `${start} → ${end}`;
+  })();
 
   // Modal state
   const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null);
@@ -172,12 +182,23 @@ export const Analytics: React.FC = () => {
           >
             Retour
           </Button>
+          <Box
+            component="img"
+            src="/logoM.jpeg"
+            alt="Miezaka Logo"
+            sx={{
+              width: 32,
+              height: 32,
+              objectFit: 'contain',
+              borderRadius: '50%'
+            }}
+          />
           <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a' }}>
             ANALYTICS & PRÉDICTIONS
           </Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-          Basé sur votre dernier rapport de mouvements
+          {periodLabel ? `Période: ${periodLabel}` : 'Basé sur votre dernier rapport de mouvements'}
         </Typography>
       </Paper>
 
@@ -187,12 +208,22 @@ export const Analytics: React.FC = () => {
 
         {/* 1. Interactive Predictions Section */}
         <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-          🧠 ASSISTANT INTELLIGENT (Cliquer pour les détails)
+          📊 INDICATEURS CLÉS DE PERFORMANCE — Période analysée
         </Typography>
         <Grid container spacing={3}>
           {/* 1. KPIs Globaux */}
           <Grid item xs={12}>
             <KPICards />
+          </Grid>
+
+          {/* 1.5. Prédictions IA (Ventes & Ruptures) */}
+          <Grid item xs={12}>
+            <PredictionsCharts />
+          </Grid>
+
+          {/* 1.7. Classification des Articles */}
+          <Grid item xs={12}>
+            <ArticleClassification />
           </Grid>
 
           {/* 2. Recommandations Automatiques */}

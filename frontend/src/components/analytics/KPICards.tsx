@@ -7,7 +7,8 @@ import {
     CheckCircle as CheckCircleIcon,
     ShowChart as ShowChartIcon,
 } from '@mui/icons-material';
-import axios from 'axios';
+import { api } from '../../services/api';
+import { useAppSelector } from '../../store/hooks';
 
 interface KPIData {
     ca_total: number;
@@ -18,6 +19,7 @@ interface KPIData {
 }
 
 const KPICards: React.FC = () => {
+    const lastParams = useAppSelector((state) => state.analytics.lastParams);
     const [kpis, setKpis] = useState<KPIData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -25,7 +27,13 @@ const KPICards: React.FC = () => {
     useEffect(() => {
         const fetchKPIs = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/analytics/kpis');
+                const response = await api.get('/analytics/kpis', {
+                    params: {
+                        date_debut: lastParams?.date_debut,
+                        date_fin: lastParams?.date_fin,
+                        date_stock: lastParams?.date_stock,
+                    },
+                });
                 setKpis(response.data);
             } catch (error) {
                 console.error('Error fetching KPIs:', error);
@@ -36,7 +44,7 @@ const KPICards: React.FC = () => {
         };
 
         fetchKPIs();
-    }, []);
+    }, [lastParams?.date_debut, lastParams?.date_fin]);
 
     if (loading) {
         return (

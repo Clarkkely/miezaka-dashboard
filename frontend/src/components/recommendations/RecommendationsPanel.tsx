@@ -26,7 +26,8 @@ import {
     LocalOffer as PromoIcon,
     Close as CloseIcon,
 } from '@mui/icons-material';
-import axios from 'axios';
+import { api } from '../../services/api';
+import { useAppSelector } from '../../store/hooks';
 
 interface Recommendation {
     article: string;
@@ -50,6 +51,7 @@ interface RecommendationsData {
 }
 
 const RecommendationsPanel: React.FC = () => {
+    const lastParams = useAppSelector((state) => state.analytics.lastParams);
     const [data, setData] = useState<RecommendationsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -59,7 +61,12 @@ const RecommendationsPanel: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/recommendations');
+                const response = await api.get('/recommendations', {
+                    params: {
+                        date_debut: lastParams?.date_debut,
+                        date_fin: lastParams?.date_fin,
+                    },
+                });
                 setData(response.data);
             } catch (error) {
                 console.error('Error fetching recommendations:', error);
@@ -70,7 +77,7 @@ const RecommendationsPanel: React.FC = () => {
         };
 
         fetchData();
-    }, []);
+    }, [lastParams?.date_debut, lastParams?.date_fin]);
 
     const handleOpenModal = (item: Recommendation, categorie: string) => {
         setSelectedRec({ ...item, categorie });
@@ -194,7 +201,7 @@ const RecommendationsPanel: React.FC = () => {
                                     </Alert>
                                 ) : (
                                     <List dense sx={{ maxHeight: 300, overflow: 'auto' }}>
-                                        {category.data.slice(0, 5).map((item, idx) => (
+                                        {category.data.map((item, idx) => (
                                             <ListItem
                                                 key={idx}
                                                 onClick={() => handleOpenModal(item, category.title)}
@@ -203,7 +210,7 @@ const RecommendationsPanel: React.FC = () => {
                                                     mb: 1,
                                                     borderRadius: 1,
                                                     cursor: 'pointer',
-                                                    '&:hover': { 
+                                                    '&:hover': {
                                                         bgcolor: category.bgColor,
                                                         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                                                     },
@@ -305,53 +312,53 @@ const RecommendationsPanel: React.FC = () => {
                             </Box>
 
                             {/* Détails supplémentaires */}
-                            {(selectedRec.stock !== undefined || 
-                              selectedRec.vente_mensuelle !== undefined || 
-                              selectedRec.marge_pct !== undefined) && (
-                                <Box sx={{ bgcolor: '#f0fdf4', p: 1.5, borderRadius: 1 }}>
-                                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                                        MÉTRIQUES
-                                    </Typography>
-                                    <Grid container spacing={1} sx={{ mt: 0.5 }}>
-                                        {selectedRec.stock !== undefined && (
-                                            <Grid item xs={6}>
-                                                <Box>
-                                                    <Typography variant="caption" color="text.secondary">
-                                                        Stock
-                                                    </Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                        {selectedRec.stock} unités
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                        )}
-                                        {selectedRec.vente_mensuelle !== undefined && (
-                                            <Grid item xs={6}>
-                                                <Box>
-                                                    <Typography variant="caption" color="text.secondary">
-                                                        Vente Mensuelle
-                                                    </Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                        {selectedRec.vente_mensuelle} unités
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                        )}
-                                        {selectedRec.marge_pct !== undefined && (
-                                            <Grid item xs={12}>
-                                                <Box>
-                                                    <Typography variant="caption" color="text.secondary">
-                                                        Marge
-                                                    </Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                        {selectedRec.marge_pct.toFixed(1)}%
-                                                    </Typography>
-                                                </Box>
-                                            </Grid>
-                                        )}
-                                    </Grid>
-                                </Box>
-                            )}
+                            {(selectedRec.stock !== undefined ||
+                                selectedRec.vente_mensuelle !== undefined ||
+                                selectedRec.marge_pct !== undefined) && (
+                                    <Box sx={{ bgcolor: '#f0fdf4', p: 1.5, borderRadius: 1 }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                                            MÉTRIQUES
+                                        </Typography>
+                                        <Grid container spacing={1} sx={{ mt: 0.5 }}>
+                                            {selectedRec.stock !== undefined && (
+                                                <Grid item xs={6}>
+                                                    <Box>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Stock
+                                                        </Typography>
+                                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                            {selectedRec.stock}
+                                                        </Typography>
+                                                    </Box>
+                                                </Grid>
+                                            )}
+                                            {selectedRec.vente_mensuelle !== undefined && (
+                                                <Grid item xs={6}>
+                                                    <Box>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Vente Mensuelle
+                                                        </Typography>
+                                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                            {selectedRec.vente_mensuelle}
+                                                        </Typography>
+                                                    </Box>
+                                                </Grid>
+                                            )}
+                                            {selectedRec.marge_pct !== undefined && (
+                                                <Grid item xs={12}>
+                                                    <Box>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Marge
+                                                        </Typography>
+                                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                            {selectedRec.marge_pct.toFixed(1)}%
+                                                        </Typography>
+                                                    </Box>
+                                                </Grid>
+                                            )}
+                                        </Grid>
+                                    </Box>
+                                )}
                         </Box>
                     </DialogContent>
                 )}

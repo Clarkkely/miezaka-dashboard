@@ -15,7 +15,7 @@ import {
   TextField,
   InputAdornment,
 } from '@mui/material';
-import { Article } from '../../services/api';
+import { Article, rapportAPI } from '../../services/api';
 import ArticleRecommendationModal from '../recommendations/ArticleRecommendationModal';
 import { Lightbulb as LightbulbIcon, SettingsBackupRestore as RestoreIcon, Search as SearchIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
@@ -66,15 +66,12 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
   React.useEffect(() => {
     const fetchFournisseurs = async () => {
       try {
-        const response = await fetch('/api/rapport/fournisseurs');
-        if (response.ok) {
-          const fournisseurs = await response.json();
-          const map: Record<string, string> = {};
-          fournisseurs.forEach((f: any) => {
-            map[f.code] = f.name;
-          });
-          setFournisseurMap(map);
-        }
+        const data = await rapportAPI.getFournisseurs();
+        const map: Record<string, string> = {};
+        data.forEach((f: any) => {
+          map[f.code] = f.name;
+        });
+        setFournisseurMap(map);
       } catch (error) {
         console.error('Error fetching fournisseurs:', error);
       }
@@ -138,7 +135,10 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
     lineHeight: 1.2,
     whiteSpace: 'nowrap' as const,
     textAlign: 'center' as const,
-    // overflow: 'hidden', // Removed to allow sticky headers to work better or content to be fully visible if needed, though usually header is fixed
+    position: 'sticky' as const,
+    top: 0,
+    zIndex: 10,
+    boxShadow: 'inset 0 -1px 0 #cbd5e1', // Visual border for sticky header
   });
 
   const cellStyle = {
@@ -195,48 +195,45 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
       )}
 
       {/* Table */}
-      <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-        <TableContainer sx={{ maxHeight: '100%', width: '100%' }}>
-          {/* Removed tableLayout: fixed to allow auto-sizing and scrolling */}
-          <Table stickyHeader size="small" sx={{ width: 'max-content', minWidth: '100%' }}>
+      <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <TableContainer sx={{ flexGrow: 1, height: '100%', width: '100%', overflow: 'auto' }}>
+          <Table stickyHeader size="small" sx={{ width: 'max-content', minWidth: '100%', borderCollapse: 'separate' }}>
             {/* Removed colgroup to let columns auto-size based on content and min-widths */}
             <TableHead>
               {/* Main header row with column groups */}
               <TableRow>
-                <TableCell colSpan={4} sx={{ ...getHeaderStyle('#dbeafe'), minWidth: 200 }}>Référence Article</TableCell>
-                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f8fafc'), minWidth: 200, ...stickyDesignationStyle, top: 0, zIndex: 6 }}>Désignation</TableCell>
-                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f8fafc'), minWidth: 60 }}>Pds U</TableCell>
-                {/* ... other headers ... */}
-
-                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f8fafc'), minWidth: 80 }}>PU Ach</TableCell>
-                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f8fafc'), minWidth: 80 }}>PU Revient</TableCell>
-                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f8fafc'), minWidth: 80 }}>PU Gros</TableCell>
-                <TableCell colSpan={2} sx={{ ...getHeaderStyle('#e9d5ff'), minWidth: 140 }}>Report</TableCell>
-                <TableCell colSpan={2} sx={{ ...getHeaderStyle('#d1fae5'), minWidth: 140 }}>Achat</TableCell>
-                <TableCell colSpan={2} sx={{ ...getHeaderStyle('#fed7aa'), minWidth: 140 }}>Production</TableCell>
-                <TableCell colSpan={2} sx={{ ...getHeaderStyle('#dbeafe'), minWidth: 140 }}>Vente</TableCell>
-                <TableCell colSpan={2} sx={{ ...getHeaderStyle('#f1f5f9'), minWidth: 140 }}>Stock</TableCell>
-                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f1f5f9'), minWidth: 100 }}>Montant</TableCell>
-                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#fef3c7'), minWidth: 70 }}>% Ven</TableCell>
-                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#fee2e2'), minWidth: 70 }}>Marg%</TableCell>
-                {!hideActions && <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#e0e7ff'), minWidth: 50 }}>Actions</TableCell>}
+                <TableCell colSpan={4} sx={{ ...getHeaderStyle('#dbeafe'), minWidth: 200, top: 0, zIndex: 12 }}>Référence Article</TableCell>
+                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f8fafc'), minWidth: 200, ...stickyDesignationStyle, top: 0, zIndex: 13 }}>Désignation</TableCell>
+                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f8fafc'), minWidth: 60, top: 0, zIndex: 12 }}>Pds U</TableCell>
+                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f8fafc'), minWidth: 80, top: 0, zIndex: 12 }}>PU Ach</TableCell>
+                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f8fafc'), minWidth: 80, top: 0, zIndex: 12 }}>PU Revient</TableCell>
+                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f8fafc'), minWidth: 80, top: 0, zIndex: 12 }}>PU Gros</TableCell>
+                <TableCell colSpan={2} sx={{ ...getHeaderStyle('#e9d5ff'), minWidth: 140, top: 0, zIndex: 12 }}>Report</TableCell>
+                <TableCell colSpan={2} sx={{ ...getHeaderStyle('#d1fae5'), minWidth: 140, top: 0, zIndex: 12 }}>Achat</TableCell>
+                <TableCell colSpan={2} sx={{ ...getHeaderStyle('#fed7aa'), minWidth: 140, top: 0, zIndex: 12 }}>Production</TableCell>
+                <TableCell colSpan={2} sx={{ ...getHeaderStyle('#dbeafe'), minWidth: 140, top: 0, zIndex: 12 }}>Vente</TableCell>
+                <TableCell colSpan={2} sx={{ ...getHeaderStyle('#f1f5f9'), minWidth: 140, top: 0, zIndex: 12 }}>Stock</TableCell>
+                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#f1f5f9'), minWidth: 100, top: 0, zIndex: 12 }}>Montant</TableCell>
+                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#fef3c7'), minWidth: 70, top: 0, zIndex: 12 }}>% Ven</TableCell>
+                <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#fee2e2'), minWidth: 70, top: 0, zIndex: 12 }}>Marg%</TableCell>
+                {!hideActions && <TableCell rowSpan={2} sx={{ ...getHeaderStyle('#e0e7ff'), minWidth: 50, top: 0, zIndex: 12 }}>Actions</TableCell>}
               </TableRow>
               {/* Sub-header row */}
               <TableRow>
-                <TableCell sx={getHeaderStyle('#dbeafe')}>%</TableCell>
-                <TableCell sx={getHeaderStyle('#dbeafe')}>Info</TableCell>
-                <TableCell sx={getHeaderStyle('#dbeafe')}>*</TableCell>
-                <TableCell sx={getHeaderStyle('#dbeafe')}>Réf</TableCell>
-                <TableCell sx={getHeaderStyle('#e9d5ff')}>Qte</TableCell>
-                <TableCell sx={getHeaderStyle('#e9d5ff')}>Poids</TableCell>
-                <TableCell sx={getHeaderStyle('#d1fae5')}>Qte</TableCell>
-                <TableCell sx={getHeaderStyle('#d1fae5')}>Poids</TableCell>
-                <TableCell sx={getHeaderStyle('#fed7aa')}>Qte</TableCell>
-                <TableCell sx={getHeaderStyle('#fed7aa')}>Poids</TableCell>
-                <TableCell sx={getHeaderStyle('#dbeafe')}>Qte</TableCell>
-                <TableCell sx={getHeaderStyle('#dbeafe')}>Poids</TableCell>
-                <TableCell sx={getHeaderStyle('#f1f5f9')}>Qte</TableCell>
-                <TableCell sx={getHeaderStyle('#f1f5f9')}>Poids</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#dbeafe'), top: 32, zIndex: 11 }}>%</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#dbeafe'), top: 32, zIndex: 11 }}>Info</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#dbeafe'), top: 32, zIndex: 11 }}>*</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#dbeafe'), top: 32, zIndex: 11 }}>Réf</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#e9d5ff'), top: 32, zIndex: 11 }}>Qte</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#e9d5ff'), top: 32, zIndex: 11 }}>Poids</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#d1fae5'), top: 32, zIndex: 11 }}>Qte</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#d1fae5'), top: 32, zIndex: 11 }}>Poids</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#fed7aa'), top: 32, zIndex: 11 }}>Qte</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#fed7aa'), top: 32, zIndex: 11 }}>Poids</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#dbeafe'), top: 32, zIndex: 11 }}>Qte</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#dbeafe'), top: 32, zIndex: 11 }}>Poids</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#f1f5f9'), top: 32, zIndex: 11 }}>Qte</TableCell>
+                <TableCell sx={{ ...getHeaderStyle('#f1f5f9'), top: 32, zIndex: 11 }}>Poids</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -246,9 +243,9 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
                 let currentFamille = '';
 
                 // Enhanced totals with additional metrics for % Ven, Marg%, and avg PU Ach
-                let totalFamille = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutAchat: 0 };
-                let totalFourn = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutAchat: 0 };
-                let totalGeneral = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutAchat: 0 };
+                let totalFamille = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutRevient: 0 };
+                let totalFourn = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutRevient: 0 };
+                let totalGeneral = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutRevient: 0 };
 
                 // Format numbers: show "-" for 0 or negative values, 2 decimal places
                 const formatNum = (val: number) => (val <= 0) ? '-' : val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -261,17 +258,15 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
                   const totalDisponible = data.qrt + data.qac + data.qpr;
                   const pctVen = totalDisponible > 0 ? (data.qve / totalDisponible * 100) : 0;
                   const avgPuAch = data.count > 0 ? (data.sumPuAch / data.count) : 0;
-                  const margePct = data.sumVenteMontant > 0 ? ((data.sumVenteMontant - data.sumCoutAchat) / data.sumVenteMontant * 100) : 0;
+                  // Use sumCoutRevient (AR) for Margin calculation to avoid mix with Devise
+                  const margePct = data.sumVenteMontant > 0 ? ((data.sumVenteMontant - data.sumCoutRevient) / data.sumVenteMontant * 100) : 0;
 
                   return (
                     <TableRow key={label + Math.random()} sx={{ bgcolor: bg }}>
-                      {/* Empty cells before label */}
                       {Array.from({ length: labelCol }).map((_, i) => (
                         <TableCell key={i} sx={{ ...cellStyle, color: fg }} />
                       ))}
-                      {/* Label cell */}
                       <TableCell sx={{ ...cellStyle, fontWeight: 900, color: fg, textAlign: 'center' }}>{label}</TableCell>
-                      {/* Empty cells after label, but show avg PU Ach in PU Ach column */}
                       {Array.from({ length: 8 - labelCol }).map((_, i) => {
                         // Column 6 (PU Ach) is at index (6 - labelCol - 1) after the label
                         if (i === (6 - labelCol - 1)) {
@@ -310,12 +305,12 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
                   if (isNewFournisseur && currentFournisseur !== '' && index > 0) {
                     const fournisseurAffiche = getFournisseurAffiche(currentFournisseur);
                     rows.push(renderTotalRow(`TOT FOURN ${fournisseurAffiche}`, totalFourn, 'fournisseur', 3)); // Label in col 4 (Réf)
-                    totalFourn = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutAchat: 0 };
+                    totalFourn = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutRevient: 0 };
                   }
 
                   if (isNewFamille && currentFamille !== '' && index > 0) {
                     rows.push(renderTotalRow(`TOT ${currentFamille}`, totalFamille, 'famille', 4));
-                    totalFamille = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutAchat: 0 };
+                    totalFamille = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutRevient: 0 };
                   }
 
                   if (isNewFournisseur) {
@@ -338,11 +333,17 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
                     t.mnt += row.montant_disponible;
                     t.count += 1;
                     t.sumPuAch += row.pu_achat;
-                    // Estimate vente montant and cout achat for marge calculation
-                    const venteMontant = row.vente_qte * row.pu_gros;
-                    const coutAchat = row.vente_qte * row.pu_achat;
+
+                    // Calculation of Sales and Cost in local currency (AR)
+                    // If weight depends (poids_uv != 1), we use Poids for calculations
+                    const isWeightDependent = row.poids_uv !== 1;
+                    const salesVolume = isWeightDependent ? row.vente_poids : row.vente_qte;
+
+                    const venteMontant = salesVolume * row.pu_gros;
+                    const coutRevient = salesVolume * row.pu_revient;
+
                     t.sumVenteMontant += venteMontant;
-                    t.sumCoutAchat += coutAchat;
+                    t.sumCoutRevient += coutRevient;
                   });
 
                   // Article data row with 23 columns (ajouté Actions)
@@ -351,27 +352,25 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
 
                   rows.push(
                     <TableRow key={row.reference + index} hover sx={{ '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.05)' } }}>
-                      {/* Référence Article - 4 sub-columns */}
                       <TableCell align="center" sx={{ ...cellStyle, color: '#7c3aed', fontWeight: 700 }}>{getPctCategory(row.pct_vente)}</TableCell>
                       <TableCell sx={{ ...cellStyle, color: '#475569' }}>{row.infotlib6 || ''}</TableCell>
                       <TableCell align="center" sx={{ ...cellStyle, color: '#dc2626', fontWeight: 900 }}>{getStockIndicator(row.report_poids)}</TableCell>
-                      {/* Data row with bold Ref and Designation */}
-                      <TableCell sx={{ ...cellStyle, color: '#1e293b', fontWeight: 800 }}>{row.reference}</TableCell> {/* Bold Ref */}
-                      <TableCell sx={{ ...cellStyle, color: '#334155', fontWeight: 800, minWidth: 200, ...stickyDesignationStyle }}>{row.designation}</TableCell> {/* Bold Designation */}
+                      <TableCell sx={{ ...cellStyle, color: '#1e293b', fontWeight: 800 }}>{row.reference}</TableCell>
+                      <TableCell sx={{ ...cellStyle, color: '#334155', fontWeight: 800, minWidth: 200, ...stickyDesignationStyle }}>{row.designation}</TableCell>
                       <TableCell align="center" sx={{ ...cellStyle, color: '#64748b' }}>{formatNum(row.poids_uv)}</TableCell>
                       <TableCell align="center" sx={{ ...cellStyle, color: '#64748b' }}>{formatNum(row.pu_achat)}</TableCell>
                       <TableCell align="center" sx={{ ...cellStyle, color: '#64748b' }}>{formatNum(row.pu_revient)}</TableCell>
                       <TableCell align="center" sx={{ ...cellStyle, color: '#64748b' }}>{formatNum(row.pu_gros)}</TableCell>
                       {/* ... rest of columns ... */}
-                      <TableCell align="center" sx={{ ...cellStyle, color: '#60a5fa' }}>{formatNum(row.report_qte)}</TableCell>
+                      <TableCell align="center" sx={{ ...cellStyle, color: '#60a5fa' }}>{showQte ? formatNum(row.report_qte) : '-'}</TableCell>
                       <TableCell align="center" sx={{ ...cellStyle, color: '#60a5fa' }}>{formatNum(row.report_poids)}</TableCell>
-                      <TableCell align="center" sx={{ ...cellStyle, color: '#4ade80' }}>{formatNum(row.achat_qte)}</TableCell>
+                      <TableCell align="center" sx={{ ...cellStyle, color: '#4ade80' }}>{showQte ? formatNum(row.achat_qte) : '-'}</TableCell>
                       <TableCell align="center" sx={{ ...cellStyle, color: '#4ade80' }}>{formatNum(row.achat_poids)}</TableCell>
-                      <TableCell align="center" sx={{ ...cellStyle, color: '#fbbf24' }}>{formatNum(row.production_qte)}</TableCell>
+                      <TableCell align="center" sx={{ ...cellStyle, color: '#fbbf24' }}>{showQte ? formatNum(row.production_qte) : '-'}</TableCell>
                       <TableCell align="center" sx={{ ...cellStyle, color: '#fbbf24' }}>{formatNum(row.production_poids)}</TableCell>
-                      <TableCell align="center" sx={{ ...cellStyle, color: '#ef4444' }}>{formatNum(row.vente_qte)}</TableCell>
+                      <TableCell align="center" sx={{ ...cellStyle, color: '#ef4444' }}>{showQte ? formatNum(row.vente_qte) : '-'}</TableCell>
                       <TableCell align="center" sx={{ ...cellStyle, color: '#ef4444' }}>{formatNum(row.vente_poids)}</TableCell>
-                      <TableCell align="center" sx={{ ...cellStyle, color: '#94a3b8', fontWeight: 700 }}>{formatNum(row.stock_qte)}</TableCell>
+                      <TableCell align="center" sx={{ ...cellStyle, color: '#94a3b8', fontWeight: 700 }}>{showQte ? formatNum(row.stock_qte) : '-'}</TableCell>
                       <TableCell align="center" sx={{ ...cellStyle, color: '#94a3b8', fontWeight: 700 }}>{formatNum(row.stock_poids)}</TableCell>
                       <TableCell align="right" sx={{ ...cellStyle, color: '#0f172a', fontWeight: 800 }}>{formatNum(row.montant_disponible)}</TableCell>
                       <TableCell align="right" sx={{ ...cellStyle, color: '#2563eb', fontWeight: 600 }}>{row.pct_vente.toFixed(1)}%</TableCell>
@@ -425,6 +424,9 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
                     rows.push(renderTotalRow(`TOT FOURN ${fournisseurAffiche}`, totalFourn, 'fournisseur', 3));
                     rows.push(renderTotalRow(`TOT ${currentFamille}`, totalFamille, 'famille', 4));
                     rows.push(renderTotalRow(`TOTAL GENERAL`, totalGeneral, 'general', 3));
+
+                    totalFourn = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutRevient: 0 };
+                    totalFamille = { qrt: 0, prt: 0, qac: 0, pac: 0, qpr: 0, ppr: 0, qve: 0, pve: 0, qst: 0, pst: 0, mnt: 0, count: 0, sumPuAch: 0, sumVenteMontant: 0, sumCoutRevient: 0 };
 
                     // Additional total rows (placeholders for now - need actual data)
                     // Additional total rows with values per section
@@ -497,39 +499,37 @@ const DataTable: React.FC<DataTableProps> = ({ data, periodes, hideSearch, hideA
                     let sumValArStock = 0;
 
                     // Iterate to sum using specific rates per article
+                    // Sales Volume mapping for AR total row
+                    let sumSalesAr = 0;
+                    let sumCostAr = 0;
+
                     sortedData.forEach(item => {
                       const isUSA = item.fournisseur && item.fournisseur.toUpperCase().includes('USA');
                       const rate = isUSA ? 4700 : 5200;
 
-                      const unitVal = item.pu_achat * rate; // Price in AR
+                      const isWeightDependent = item.poids_uv !== 1;
+                      const salesVolume = isWeightDependent ? item.vente_poids : item.vente_qte;
 
-                      sumValArReport += unitVal * item.report_qte;
-                      sumValArAchat += unitVal * item.achat_qte;
-                      sumValArProd += unitVal * item.production_qte;
-                      sumValArVente += unitVal * item.vente_qte;
-                      sumValArStock += unitVal * item.stock_qte;
+                      const unitCostAr = item.pu_achat * rate; // Price in AR from Devise
+
+                      sumValArReport += unitCostAr * item.report_qte;
+                      sumValArAchat += unitCostAr * item.achat_qte;
+                      sumValArProd += unitCostAr * item.production_qte;
+                      sumValArVente += unitCostAr * item.vente_qte;
+                      sumValArStock += unitCostAr * item.stock_qte;
+
+                      sumSalesAr += salesVolume * item.pu_gros;
+                      sumCostAr += salesVolume * unitCostAr;
                     });
 
-                    // Calculate totals
-                    // Average Unit Value AR = Total Value over Total Qty (just for display if needed, but not explicitly requested)
-                    const totalQty = totalGeneral.qrt + totalGeneral.qac + totalGeneral.qpr;
-                    const avgUnitValAr = totalQty > 0 ? (sumValArReport + sumValArAchat + sumValArProd) / totalQty : 0; // Approx weighted avg
-
-                    // Calculate Marg% for VALEUR DEDOUANEE AR
-                    // Cost AR = sumValArVente
-                    // Sales AR (Montant Disp is presumably in AR?) -> Yes, usually Montant is sales revenue
-                    // "montant_disponible" is usually value of STOCK? Or sales amount?
-                    // In previous code: sumVenteMontant = vente_qte * pu_gros. Assuming pu_gros is local currency (AR).
-
-                    const margePctAr = totalGeneral.sumVenteMontant > 0 ? ((totalGeneral.sumVenteMontant - sumValArVente) / totalGeneral.sumVenteMontant * 100) : 0;
+                    const margePctAr = sumSalesAr > 0 ? ((sumSalesAr - sumCostAr) / sumSalesAr * 100) : 0;
 
                     rows.push(
                       <TableRow key="valeur-dedouanee-ar" sx={{ bgcolor: '#fef3c7' }}>
                         <TableCell colSpan={4} sx={{ ...cellStyle, fontWeight: 900, textAlign: 'center' }}>VALEUR DEDOUANEE AR</TableCell>
-                        <TableCell colSpan={2} sx={cellStyle} /> {/* Desig, PdsU */}
-                        <TableCell align="right" sx={{ ...cellStyle, fontWeight: 800, color: '#0f172a' }}>{formatNum(unitValDedouane)}</TableCell> {/* PU Ach filled - Keep in Devise as requested */}
-                        <TableCell colSpan={2} sx={cellStyle} /> {/* PU Rev, PU Gros */}
-
+                        <TableCell colSpan={2} sx={cellStyle} />
+                        <TableCell align="right" sx={{ ...cellStyle, fontWeight: 800, color: '#0f172a' }}>{formatNum(unitValDedouane)}</TableCell>
+                        <TableCell colSpan={2} sx={cellStyle} />
                         <TableCell align="center" sx={{ ...cellStyle, fontWeight: 900, color: '#f97316' }} colSpan={2}>{formatNum(sumValArReport)}</TableCell>
                         <TableCell align="center" sx={{ ...cellStyle, fontWeight: 900, color: '#f97316' }} colSpan={2}>{formatNum(sumValArAchat)}</TableCell>
                         <TableCell align="center" sx={{ ...cellStyle, fontWeight: 900, color: '#fbbf24' }} colSpan={2}>{formatNum(sumValArProd)}</TableCell>
